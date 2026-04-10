@@ -5,7 +5,7 @@
 ## 代碼風格概覽
 
 ### 命名慣例
-- **檔案名稱**：PascalCase（React 元件 / pages 使用 `page.jsx` 或 `page.tsx`）與 camelCase（工具函式）
+- **檔案名稱**：PascalCase（React 元件 / pages 使用 `Page.jsx` 或 `Page.tsx`）與 camelCase（工具函式）
 - **變數與函式**：camelCase
 - **常數**：UPPER_SNAKE_CASE
 
@@ -94,7 +94,7 @@ export default function JoinButton({ groupId }) {
 - 所有單元測試放在 `__tests__/`。
 - mock Supabase client 時建議 mock 本地 `lib/supabase`，而非直接 mock `@supabase/supabase-js`，以降低耦合。
 
-範例（`__tests__/select-group.test.jsx`）：
+範例（`__tests__/SelectGroup.test.jsx`）：
 ```javascript
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -124,9 +124,9 @@ describe('GroupSelector', () => {
 
 ## Feature-specific 規範：Group Selection
 
-- Component 放置：頁面 wrapper 放在 `src/app/select-group/page.jsx`；可重用組件放在 `src/components/`。
+- Component 放置：頁面 wrapper 放在 `src/app/select-group/Page.jsx`；可重用組件放在 `src/components/`。
 - Join 按鈕必須為 `<button>`，包含 `aria-label`（例如 `加入組別 {groupName}`）。
-- 單元測試：`__tests__/select-group.test.jsx`（mock `lib/supabase`）。
+- 單元測試：`__tests__/SelectGroup.test.jsx`（mock `lib/supabase`）。
 - E2E：`e2e/select-group.spec.js`，流程：前往 `/select-group` → 選擇組別 → 驗證教師檢視。
 
 ## Commit 與 CI
