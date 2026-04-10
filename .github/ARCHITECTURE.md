@@ -117,7 +117,7 @@
 
 ### 5. 環境變數設定
 
-環境變數與快速上手命令已集中紀錄於專案慣例文件，請參閱 `.github/CONVENTIONS.md`（包含 `NEXT_PUBLIC_*` 範例與 `.env.local` 設定步驟）。
+環境變數與快速上手指引已集中於專案根目錄的 `README.md`，請參閱該文件取得範例與命令。
 
 ### 測試與模擬
 
@@ -155,27 +155,9 @@ auth.currentUser Updated
 Component Re-render
 ```
 
-## 開發工作流綜合圖
+## 快速上手
 
-```
-npm install
-    ↓
-Copy .env.example → .env.local
-    ↓
-npm run dev (Turbopack)
-    ↓
-http://localhost:3000
-    ↓
-Edit Code → HMR Updates (~490ms)
-    ↓
-npm run test (Vitest with mocks)
-    ↓
-npx playwright test (E2E)
-    ↓
-npm run build
-    ↓
-npm run deploy (supabase Hosting)
-```
+快速上手、環境變數與常用指令請見專案根目錄的 `README.md`。
 
 ## supabase MCP 伺服器
 
