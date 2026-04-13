@@ -5,6 +5,7 @@ export default function ClassesPanel() {
   const [classes, setClasses] = useState<any[]>([]);
   const [name, setName] = useState("");
   const [year, setYear] = useState<number | "">(new Date().getFullYear());
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch("/api/classes");
@@ -15,9 +16,13 @@ export default function ClassesPanel() {
   useEffect(() => { load(); }, []);
 
   async function createClass() {
+    setError(null);
     const res = await fetch("/api/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ class_name: name, year }) });
     const j = await res.json();
     if (j.ok) { setName(""); load(); }
+    else {
+      setError(j.error || "建立班級失敗");
+    }
   }
 
   async function deleteClass(id: number) {
@@ -34,6 +39,7 @@ export default function ClassesPanel() {
         <input value={String(year)} onChange={(e) => setYear(Number(e.target.value) || "")} placeholder="年度" className="border p-2 w-24" />
         <button onClick={createClass} className="px-3 py-1 bg-blue-600 text-white rounded">建立</button>
       </div>
+      {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
 
       <ul>
         {classes.map((c) => (

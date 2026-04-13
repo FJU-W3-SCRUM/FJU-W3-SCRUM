@@ -16,6 +16,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { class_name, year, teacher_id } = body;
     if (!class_name) return NextResponse.json({ ok: false, error: "class_name required" }, { status: 400 });
+    // check duplicate by class_name
+    const { data: exists, error: selErr } = await supabase.from("classes").select("id").eq("class_name", class_name).limit(1).maybeSingle();
+    if (selErr) return NextResponse.json({ ok: false, error: selErr.message }, { status: 500 });
+    if (exists) {
+      return NextResponse.json({ ok: false, error: "Class name already exists" }, { status: 409 });
+    }
+
     const { data, error } = await supabase.from("classes").insert([{ class_name, year, teacher_id }]).select().single();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, class: data });
