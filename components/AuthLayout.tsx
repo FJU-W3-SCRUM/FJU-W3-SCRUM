@@ -6,6 +6,8 @@ import dynamic from "next/dynamic";
 
 const ImportCsvForm = dynamic(() => import("./ImportCsvForm"), { ssr: false });
 const GroupsPanel = dynamic(() => import("./GroupsPanel"), { ssr: false });
+const AccountsPanel = dynamic(() => import("./AccountsPanel"), { ssr: false });
+const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
 
 export default function AuthLayout({
   user,
@@ -17,8 +19,9 @@ export default function AuthLayout({
   onLogout: () => void;
 }) {
   const menu = [
-    { key: "accounts", label: "帳號管理" },
+    { key: "classes", label: "班別設定" },
     { key: "groups", label: "分組設定" },
+    { key: "accounts", label: "帳號管理" },
     { key: "class_mode", label: "上課模式" },
     { key: "report_mode", label: "報告模式" },
   ];
@@ -71,6 +74,8 @@ export default function AuthLayout({
 
       <main className="flex-1 p-6 bg-gradient-to-b from-white to-zinc-50">
         {active === "home" && children}
+        {active === "accounts" && <AccountsPanel />}
+        {active === "classes" && <ClassesPanel />}
         {active === "import" && <ImportCsvForm />}
         {active === "groups" && <GroupsPanel />}
         {active === "class_mode" && <div className="bg-white p-4 rounded shadow">上課模式設定（待實作）</div>}
