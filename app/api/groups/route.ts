@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabase/client";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { data, error } = await supabase.from("groups").select("id,group_name,class_id");
+    const url = new URL(request.url);
+    const class_id = url.searchParams.get("class_id");
+    let query = supabase.from("groups").select("id,group_name,class_id");
+    if (class_id) query = query.eq("class_id", Number(class_id));
+    const { data, error } = await query.order('group_name', { ascending: true });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, groups: data });
   } catch (e: any) {
