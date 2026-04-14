@@ -24,9 +24,19 @@ export default function AccountsPanel() {
   }
 
   useEffect(() => { loadClasses(); loadAccounts(); }, []);
+  
+  // Refresh accounts list when classId or q changes
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      loadAccounts();
+    }, 300); // Debounce search
+    return () => clearTimeout(handler);
+  }, [classId, q]);
 
   return (
     <div className="space-y-4">
+      <ImportCsvForm onImportSuccess={loadAccounts} />
+
       <div className="bg-white p-4 rounded shadow">
         <h3 className="font-medium mb-3">帳號管理</h3>
         <div className="flex gap-2 mb-3">
@@ -56,8 +66,6 @@ export default function AccountsPanel() {
           </tbody>
         </table>
       </div>
-
-      <ImportCsvForm />
     </div>
   );
 }

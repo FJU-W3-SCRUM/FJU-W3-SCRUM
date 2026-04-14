@@ -1,11 +1,27 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
-export default function ImportCsvForm() {
+interface Props {
+  onImportSuccess?: () => void;
+}
+
+export default function ImportCsvForm({ onImportSuccess }: Props) {
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [errors, setErrors] = useState<any[]>([]);
+  const [classId, setClassId] = useState<string | null>(null);
+  const [classes, setClasses] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  async function loadClasses() {
+    const res = await fetch("/api/classes");
+    const j = await res.json();
+    if (j.ok) setClasses(j.classes || []);
+  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -25,6 +41,13 @@ export default function ImportCsvForm() {
     e?.preventDefault();
     setResult(null);
     setErrors([]);
+    
+    // Validate class selection
+    if (!classId) {
+      setErrors([{ error: '請先選擇班別' }]);
+      return;
+    }
+
     try {
       // Validate: each non-empty line must have exactly 2 columns (姓名,學號)
       const rawLines = text.split(/\r?\n/);
@@ -36,12 +59,12 @@ export default function ImportCsvForm() {
 
       // If first non-empty line looks like a header (contains 'name' or 'student_no'), keep it.
       const first = nonEmptyLines[0].trim().toLowerCase();
-      const hasHeader = first.includes('name') || first.includes('student_no');
+      const hasHeader = first.includes('name') || first.includes('student_no') || first.includes('姓名') || first.includes('學號');
 
       // Validate data rows (skip header if present)
       const dataLines = hasHeader ? nonEmptyLines.slice(1) : nonEmptyLines;
       for (let i = 0; i < dataLines.length; i++) {
-        const cols = dataLines[i].split(",");
+        const cols = dataLines[i].split(",").map(c => c.trim()).filter(Boolean);
         if (cols.length !== 2) {
           setErrors([{ error: `第 ${i + 1 + (hasHeader ? 1 : 0)} 行格式錯誤：需為 2 個欄位 (姓名,學號)` }]);
           return;
@@ -55,7 +78,11 @@ export default function ImportCsvForm() {
         bodyToSend = `name,student_no\n${text}`;
       }
 
-      const res = await fetch("/api/import", { method: "POST", body: bodyToSend });
+      const res = await fetch("/api/import", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv: bodyToSend, class_id: Number(classId) })
+      });
       const json = await res.json();
       if (!json.ok) {
         // Handle validation errors before submission
@@ -63,6 +90,10 @@ export default function ImportCsvForm() {
       } else {
         // json.result contains: { imported_count, duplicate_count, duplicates_detail }
         setResult(json.result);
+        setText("");
+        setFileName(null);
+        // Notify parent component to refresh data
+        onImportSuccess?.();
       }
     } catch (err) {
       setErrors([{ error: String(err) }]);
@@ -78,6 +109,19 @@ export default function ImportCsvForm() {
   return (
     <div className="bg-white p-4 rounded shadow">
       <h3 className="font-medium mb-3">匯入學生名單 (CSV)</h3>
+      
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2">班別</label>
+        <select 
+          value={classId ?? ""} 
+          onChange={(e) => setClassId(e.target.value || null)} 
+          className="w-full border p-2 rounded"
+        >
+          <option value="">-- 請選擇班別 --</option>
+          {classes.map((c) => <option key={c.id} value={c.id}>{c.class_name}</option>)}
+        </select>
+      </div>
+
       <input
         ref={fileInputRef}
         type="file"
@@ -92,7 +136,7 @@ export default function ImportCsvForm() {
         <div className="text-sm text-gray-700">{fileName ?? "尚未選擇檔案"}</div>
       </div>
       <div className="text-sm text-red-600 mb-3">*.csv 內容格式為: 姓名,學號</div>
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} className="w-full mb-3 border p-2" placeholder="或貼上 CSV 文字" />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} className="w-full mb-3 border p-2" placeholder="或貼上 CSV 文字 (姓名,學號)" />
       <div className="mb-3">
         <strong>預覽 ({preview.length} 行)</strong>
         <div className="mt-2 text-sm text-gray-700">

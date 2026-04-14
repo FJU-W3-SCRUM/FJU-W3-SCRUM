@@ -1,13 +1,13 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import Link from "next/link";
 
 type Group = { id: number; group_name: string; class_id: number };
 type Account = { student_no: string; name: string };
 type Member = { id: number; student_no: string; name: string; is_leader: boolean };
 
 export default function GroupEditPage() {
-  const router = useRouter();
   const params = useParams();
   const groupId = Number(params.groupId);
 
@@ -144,11 +144,28 @@ export default function GroupEditPage() {
   }
 
   async function toggleLeader(memberId: number, isLeader: boolean) {
+    if (!group) return;
+    
+    // If already leader, do nothing (clicking same member)
+    if (isLeader) return;
+    
+    // Find the current leader and remove the leader status
+    const currentLeader = currentMembers.find(m => m.is_leader);
+    if (currentLeader) {
+      await fetch("/api/group_members", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: currentLeader.id, is_leader: false })
+      });
+    }
+    
+    // Set the new leader
     await fetch("/api/group_members", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: memberId, is_leader: !isLeader })
+      body: JSON.stringify({ id: memberId, is_leader: true })
     });
+    
     if (group) await loadMembers(group.id);
   }
 
@@ -171,9 +188,9 @@ export default function GroupEditPage() {
     return (
       <div className="p-4 bg-white rounded shadow">
         <div className="text-red-600 mb-4">{error}</div>
-        <button onClick={() => router.back()} className="px-4 py-2 bg-gray-300 rounded">
+        <Link href="/" className="px-4 py-2 bg-gray-300 rounded inline-block">
           返回
-        </button>
+        </Link>
       </div>
     );
   }
@@ -182,9 +199,9 @@ export default function GroupEditPage() {
     return (
       <div className="p-4 bg-white rounded shadow">
         <div className="text-gray-500 mb-4">未找到組別</div>
-        <button onClick={() => router.back()} className="px-4 py-2 bg-gray-300 rounded">
+        <Link href="/" className="px-4 py-2 bg-gray-300 rounded inline-block">
           返回
-        </button>
+        </Link>
       </div>
     );
   }
@@ -332,9 +349,9 @@ export default function GroupEditPage() {
       </div>
 
       <div className="flex gap-2">
-        <button onClick={() => router.back()} className="px-4 py-2 bg-gray-300 text-black rounded hover:bg-gray-400">
+        <Link href="/" className="px-4 py-2 bg-gray-300 text-black rounded hover:bg-gray-400 inline-block">
           返回
-        </button>
+        </Link>
       </div>
     </div>
   );
