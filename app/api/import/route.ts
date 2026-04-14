@@ -10,9 +10,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    // Per rules, CSV has no header. `csv-parse` is told the columns are `name` and `student_no`.
+    // Parse CSV with header. First row is header (name,student_no), data rows follow.
     const records = parse(csv, {
-      columns: ["name", "student_no"],
+      columns: true,
       skip_empty_lines: true,
     });
 
@@ -64,12 +64,11 @@ export async function POST(req: Request) {
       }
     }
 
-    let imported_count = 0;
     if (accountsToInsert.length > 0) {
-        const { error, count } = await supabase.from("accounts").insert(accountsToInsert).select();
+        const { error } = await supabase.from("accounts").insert(accountsToInsert);
         if (error) throw error;
-        imported_count = count ?? 0;
     }
+    const imported_count = accountsToInsert.length;
 
     return NextResponse.json({
       ok: true,
