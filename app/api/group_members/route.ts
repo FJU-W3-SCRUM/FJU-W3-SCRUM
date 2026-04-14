@@ -6,9 +6,41 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const group_id = url.searchParams.get("group_id");
     if (!group_id) return NextResponse.json({ ok: false, error: "group_id required" }, { status: 400 });
-    const { data, error } = await supabase.from("group_members").select("id,student_no,is_leader,created_at").eq("group_id", Number(group_id));
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, members: data });
+    
+    // Get group members
+    const { data: groupMembers, error: memberError } = await supabase
+      .from("group_members")
+      .select("id,student_no,is_leader,created_at")
+      .eq("group_id", Number(group_id));
+    
+    if (memberError) return NextResponse.json({ ok: false, error: memberError.message }, { status: 500 });
+    
+    if (!groupMembers || groupMembers.length === 0) {
+      return NextResponse.json({ ok: true, members: [] });
+    }
+    
+    // Get all relevant student info by student_no values
+    const studentNos = (groupMembers || []).map((m: any) => m.student_no);
+    const { data: accounts, error: accountError } = await supabase
+      .from("accounts")
+      .select("student_no,name")
+      .in("student_no", studentNos);
+    
+    if (accountError) return NextResponse.json({ ok: false, error: accountError.message }, { status: 500 });
+    
+    // Create lookup map for fast access
+    const accountMap = new Map((accounts || []).map((a: any) => [a.student_no, a.name]));
+    
+    // Join on client side
+    const members = (groupMembers || []).map((m: any) => ({
+      id: m.id,
+      student_no: m.student_no,
+      name: accountMap.get(m.student_no) || '',
+      is_leader: m.is_leader,
+      created_at: m.created_at
+    }));
+    
+    return NextResponse.json({ ok: true, members });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }

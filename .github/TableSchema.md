@@ -33,6 +33,7 @@
 | status | ENUM('active','inactive','suspended') | 帳號狀態 |
 | created_at | DATETIME | 建立時間 |
 | updated_at | DATETIME | 更新時間 |
+| class_id | int8 | 班級id |
 
 Notes:
 - `student_no` 應加上唯一索引以避免重複匯入造成不一致。

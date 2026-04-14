@@ -106,3 +106,16 @@ UI :
 | created_at | 建立時間 |
 
 - 4. 右邊組員列表前用一個 Radiobutton 代表是否為組長[is_leader]
+仍然沒有看到資料。如果使用modual up 太難執行，可以改成另導頁面
+**重點在當分組我按下"編輯" 開啟, 編輯組別時,  左下方幫我帶入資料
+```SQL
+SELECT * 
+FROM accounts A
+WHERE A.class_id = @classID
+AND NOT EXISTS (
+  SELECT 1 FROM group_members B
+  WHERE A.student_no = B.student_no
+  AND B.group_id = @group_id
+)
+;
+```

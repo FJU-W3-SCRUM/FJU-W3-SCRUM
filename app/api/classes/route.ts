@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabase/client";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { data, error } = await supabase.from("classes").select("id,class_name,year,teacher_id,created_at");
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id");
+    
+    let query = supabase.from("classes").select("id,class_name,year,teacher_id,created_at");
+    if (id) {
+      query = query.eq("id", Number(id));
+      const { data, error } = await query.limit(1).maybeSingle();
+      if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: true, classes: data ? [data] : [] });
+    }
+    const { data, error } = await query;
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, classes: data });
   } catch (e: any) {
