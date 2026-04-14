@@ -39,3 +39,16 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, is_leader } = body;
+    if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
+    const { data, error } = await supabase.from("group_members").update({ is_leader }).eq("id", id).select().single();
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, member: data });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  }
+}

@@ -7,8 +7,33 @@ export async function GET(request: Request) {
     const class_id = url.searchParams.get("class_id");
     const q = url.searchParams.get("q");
 
-    let query = supabase.from("accounts").select("student_no,name,email,role,status,created_at");
-    if (class_id) query = query.eq("class_id", Number(class_id));
+    let query = supabase.from("accounts").select("id,student_no,name,email,role,status,created_at");
+    
+    // If filtering by class, join with class_members
+    if (class_id) {
+      query = supabase.from("class_members")
+        .select("account_id:id, accounts:accounts(id,student_no,name,email,role,status,created_at)")
+        .eq("class_id", Number(class_id));
+      
+      const { data, error } = await query;
+      if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      
+      // Flatten the nested structure
+      const flattened = (data ?? []).map((item: any) => item.accounts).filter(Boolean);
+      
+      // Apply search filter if provided
+      let filtered = flattened;
+      if (q) {
+        const lowerQ = q.toLowerCase();
+        filtered = flattened.filter((acc: any) =>
+          acc.student_no.toLowerCase().includes(lowerQ) || acc.name.toLowerCase().includes(lowerQ)
+        );
+      }
+      
+      return NextResponse.json({ ok: true, accounts: filtered });
+    }
+    
+    // If no class_id, get all accounts
     if (q) query = query.ilike("name", `%${q}%`).or(`student_no.ilike.%${q}%`);
 
     const { data, error } = await query;
