@@ -42,6 +42,20 @@
     - 上傳*.csv檔檢查是否有最基本欄位:student_no、name、email
       - 若無email則用 學號+"@cloud.fju.edu.tw"
     - 上傳後再下方列出所有accounts資料，可依查詢條件查詢
+  - 匯入參考規則:
+    - read file : 只有2個欄位
+  
+| 欄位名稱 |  說明 |
+|----------|-------|
+|id| 依table內最大值依序自動編號|
+| student_no |  學號 , 匯入檔案的第2個欄位資料 |
+| name |  姓名 , 匯入檔案的第1個欄位資料|
+| email | 學號+"@cloud.fju.edu.tw" |
+| password_hash | 預設:student_no |
+| role | 'student' |
+| status | 'active'|
+| created_at | 建立時間 |
+| updated_at | 更新時間 |
   
 
 ## **US 1.9: 組別管理與成員分配 (分組管理) SP1004-1**

@@ -39,16 +39,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, errors }, { status: 422 });
   }
 
-  // Build JSON array for RPC
-  const rows = results.map(r => r.row);
+  // Build JSON array for RPC - construct rows with all required fields
+  const rows = results.map(r => ({
+    ...r.row,
+    email: r.row['email'] || (r.row['student_no'] + '@cloud.fju.edu.tw'),
+    password_hash: r.row['student_no'],
+  }));
 
   try {
-    // call Postgres stored procedure to import atomically
+    // call Postgres stored procedure to import, skipping duplicates
     const { data, error } = await supabase.rpc('import_accounts', { rows: rows, uploaded_by: null });
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, result: data });
+    
+    // data is array of one row: [{ success: bool, imported_count: int, duplicate_count: int, detail: jsonb }]
+    if (data && data.length > 0) {
+      const result = data[0];
+      return NextResponse.json({
+        ok: result.success,
+        result: {
+          imported_count: result.imported_count,
+          duplicate_count: result.duplicate_count,
+          duplicates_detail: result.detail?.duplicates || [],
+        },
+      });
+    }
+    return NextResponse.json({ ok: false, error: 'Unknown response from RPC' }, { status: 500 });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message || String(e) }, { status: 500 });
   }

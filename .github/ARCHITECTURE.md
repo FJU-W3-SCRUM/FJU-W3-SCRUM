@@ -27,7 +27,7 @@
 ## 關鍵檔案與元件
 
 ### 核心初始化
--- **`src/SupabaseClient.js`**：supabase 初始化、認證工具、Firestore 匯出
+-- **`src/SupabaseClient.js`**：supabase 初始化、認證工具、Supabase 匯出
   - 匯出：`auth`、`db`、`signInWithGoogle`、`signOutUser`、`useEmulator`
   - 不使用本地 supabase 模擬器（單元測試改用 mock）
 
@@ -54,7 +54,7 @@
   - 配色方案来自 ClassCue
 
 ### 配置檔案
-- **`supabase.json`**：supabase 託管與 Firestore 配置
+- **`supabase.json`**：supabase 託管與 Supabase 配置
   - `hosting.public` 指向 `dist` 目錄
   
 - **`.supabaserc`**：supabase 專案配置
