@@ -40,6 +40,7 @@
     - 條件:班別-下拉選單(資料來自classes資料表、學號或姓名模糊查詢)
   - 上傳CSV
     - 上傳*.csv檔檢查是否有最基本欄位:student_no、name、email
+    - csv 檔案內容無 header, 自動帶入 header:{name,student_no}
       - 若無email則用 學號+"@cloud.fju.edu.tw"
     - 上傳後再下方列出所有accounts資料，可依查詢條件查詢
   - 匯入參考規則:
@@ -56,6 +57,7 @@
 | status | 'active'|
 | created_at | 建立時間 |
 | updated_at | 更新時間 |
+| class_id | 畫面UI上的班別下拉選單value |
   
 ```
 『管理帳號功能』:

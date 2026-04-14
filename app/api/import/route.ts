@@ -1,8 +1,10 @@
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
-import { supabase } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
+  const supabase = createRouteHandlerClient({ cookies });
   const { csv, class_id } = await req.json();
 
   if (!csv || !class_id) {
