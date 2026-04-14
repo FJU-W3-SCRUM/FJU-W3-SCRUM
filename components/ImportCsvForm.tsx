@@ -57,26 +57,18 @@ export default function ImportCsvForm({ onImportSuccess }: Props) {
         return;
       }
 
-      // If first non-empty line looks like a header (contains 'name' or 'student_no'), keep it.
-      const first = nonEmptyLines[0].trim().toLowerCase();
-      const hasHeader = first.includes('name') || first.includes('student_no') || first.includes('姓名') || first.includes('學號');
-
-      // Validate data rows (skip header if present)
-      const dataLines = hasHeader ? nonEmptyLines.slice(1) : nonEmptyLines;
-      for (let i = 0; i < dataLines.length; i++) {
-        const cols = dataLines[i].split(",").map(c => c.trim()).filter(Boolean);
-        if (cols.length !== 2) {
-          setErrors([{ error: `第 ${i + 1 + (hasHeader ? 1 : 0)} 行格式錯誤：需為 2 個欄位 (姓名,學號)` }]);
+      // Validate data rows
+      for (let i = 0; i < nonEmptyLines.length; i++) {
+        const cols = nonEmptyLines[i].split(",").map(c => c.trim());
+        if (cols.length !== 2 || !cols[0] || !cols[1]) {
+          setErrors([{ error: `第 ${i + 1} 行格式錯誤：需為 2 個欄位 (姓名,學號)，且不可為空` }]);
           return;
         }
       }
 
-      // Ensure the server receives a header row with column names it expects.
-      let bodyToSend = text;
-      if (!hasHeader) {
-        // user CSV format is 姓名,學號 -> header should be name,student_no
-        bodyToSend = `name,student_no\n${text}`;
-      }
+      // Per rules, CSV has no header. We add it here.
+      // user CSV format is 姓名,學號 -> header should be name,student_no
+      const bodyToSend = `name,student_no\n${text}`;
 
       const res = await fetch("/api/import", { 
         method: "POST",
@@ -85,7 +77,7 @@ export default function ImportCsvForm({ onImportSuccess }: Props) {
       });
       const json = await res.json();
       if (!json.ok) {
-        // Handle validation errors before submission
+        // Handle validation errors from server
         setErrors(json.errors || [{ error: json.error }]);
       } else {
         // json.result contains: { imported_count, duplicate_count, duplicates_detail }
