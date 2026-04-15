@@ -83,7 +83,7 @@ export default function AccountsPanel() {
           </thead>
           <tbody>
             {accounts.map((a) => (
-              <tr key={a.student_no} className="border-t hover:bg-gray-50">
+              <tr key={a.id} className="border-t hover:bg-gray-50">
                 <td className="px-2 py-1">{a.class_name || '-'}</td>
                 <td className="px-2 py-1">{a.student_no}</td>
                 <td className="px-2 py-1">{a.name}</td>

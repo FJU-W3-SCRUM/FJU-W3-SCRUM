@@ -9,10 +9,10 @@ export async function GET(request: Request) {
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const page_size = parseInt(url.searchParams.get("page_size") || "10", 10);
 
-    // Build query with JOIN to classes table
+    // Build query
     let query = supabase
       .from("accounts")
-      .select("id,student_no,name,email,role,class_id,classes(class_name)", { count: "exact" });
+      .select("id,student_no,name,email,role,class_id", { count: "exact" });
 
     if (class_id) {
       query = query.eq("class_id", class_id);
@@ -22,14 +22,12 @@ export async function GET(request: Request) {
       query = query.or(`student_no.ilike.%${q}%,name.ilike.%${q}%`);
     }
 
-    // Get total count before pagination
-    const countQuery = query.clone ? supabase
-      .from("accounts")
-      .select("id", { count: "exact" }) : null;
-
-    // Apply pagination
+    // Apply ordering (by class_id, then student_no) and pagination
     const offset = (page - 1) * page_size;
-    query = query.order("student_no").range(offset, offset + page_size - 1);
+    query = query
+      .order("class_id", { ascending: true, nullsFirst: false })
+      .order("student_no", { ascending: true })
+      .range(offset, offset + page_size - 1);
 
     const { data: accountsData, error, count } = await query;
 
@@ -38,10 +36,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: "加載帳號失敗: " + error.message });
     }
 
-    // Transform data to flatten class_name
+    // Fetch all classes for lookup
+    const { data: classesData, error: classError } = await supabase
+      .from("classes")
+      .select("id,class_name");
+
+    if (classError) {
+      console.error("Error fetching classes:", classError);
+    }
+
+    // Create a map for fast lookup
+    const classMap = new Map();
+    (classesData || []).forEach((c: any) => {
+      classMap.set(c.id, c.class_name);
+    });
+
+    // Transform data - manually join with class_name
     const accounts = (accountsData || []).map((a: any) => ({
-      ...a,
-      class_name: a.classes?.class_name || null,
+      id: a.id,
+      student_no: a.student_no,
+      name: a.name,
+      email: a.email,
+      role: a.role,
+      class_id: a.class_id,
+      class_name: a.class_id ? classMap.get(a.class_id) || null : null,
     }));
 
     const totalCount = count || 0;
@@ -56,6 +74,7 @@ export async function GET(request: Request) {
       pageSize: page_size
     });
   } catch (e: any) {
+    console.error("GET /api/accounts error:", e);
     return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
   }
 }
