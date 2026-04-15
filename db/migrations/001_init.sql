@@ -4,12 +4,13 @@
 -- accounts
 CREATE TABLE IF NOT EXISTS accounts (
   id BIGSERIAL PRIMARY KEY,
-  student_no VARCHAR(50) UNIQUE NOT NULL,
+  student_no VARCHAR(50) NOT NULL,
   name VARCHAR(100) NOT NULL,
   email VARCHAR(255),
   password_hash VARCHAR(255),
   role VARCHAR(32) NOT NULL DEFAULT 'student',
   status VARCHAR(16) NOT NULL DEFAULT 'active',
+  class_id BIGINT REFERENCES classes(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );

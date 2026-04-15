@@ -25,7 +25,8 @@
 
 | 欄位名稱 | 型別 | 說明 |
 |---|---|---|
-| student_no | VARCHAR(50) (PK) | 學號 / 登入帳號（唯一識別碼） |
+| id | int8(PK) | （唯一識別碼）|
+| student_no | VARCHAR(50)  | 學號 / 登入帳號 |
 | name | VARCHAR(100) | 姓名 |
 | email | VARCHAR(255) | 聯絡信箱（選填） |
 | password_hash | VARCHAR(255) | 密碼雜湊（僅在使用本系統驗證時） |
