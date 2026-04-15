@@ -1,86 +1,136 @@
 import { NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
 import supabase from "@/lib/supabase/client";
+import type {
+  ImportCsvRow,
+  ImportValidationError,
+  DuplicateDetail,
+  AccountInsert,
+  ExistingAccountRow,
+} from "@/types/account";
 
 export async function POST(req: Request) {
   const { csv, class_id } = await req.json();
 
   if (!csv || !class_id) {
-    return NextResponse.json({ ok: false, error: "缺少 CSV 資料或班級 ID" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "缺少 CSV 資料或班級 ID" },
+      { status: 400 },
+    );
   }
 
   try {
-    // Parse CSV with header. First row is header (name,student_no), data rows follow.
-    const records = parse(csv, {
+    const numericClassId = Number(class_id);
+
+    if (Number.isNaN(numericClassId)) {
+      return NextResponse.json(
+        { ok: false, error: "class_id 格式錯誤" },
+        { status: 400 },
+      );
+    }
+
+    // 先把 CSV parse 成可處理的原始資料
+    const rawRecords = parse(csv, {
       columns: true,
       skip_empty_lines: true,
-    });
+      trim: true,
+    }) as Record<string, unknown>[];
 
-    const validationErrors = [];
+    // 正規化成明確型別
+    const records: ImportCsvRow[] = rawRecords.map((record) => ({
+      student_no: String(record.student_no ?? "").trim(),
+      name: String(record.name ?? "").trim(),
+    }));
+
+    const validationErrors: ImportValidationError[] = [];
+
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
+
       if (!record.student_no || !record.name) {
-        validationErrors.push({ line: i + 1, error: "缺少學號或姓名" });
+        validationErrors.push({
+          line: i + 2, // 第 1 列是 header，資料從第 2 列開始
+          error: "缺少學號或姓名",
+        });
       }
     }
 
     if (validationErrors.length > 0) {
-      return NextResponse.json({ ok: false, errors: validationErrors }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, errors: validationErrors },
+        { status: 400 },
+      );
     }
 
-    // Fetch existing student numbers for the given class
+    // 取得該班已存在的學號
     const { data: existingAccounts, error: fetchError } = await supabase
       .from("accounts")
       .select("student_no")
-      .eq("class_id", class_id);
+      .eq("class_id", numericClassId);
 
     if (fetchError) throw fetchError;
-    
-    const existingStudentNos = new Set(existingAccounts.map(a => a.student_no));
 
-    const accountsToInsert = [];
-    const duplicates_detail = [];
+    const existingStudentNos = new Set(
+      ((existingAccounts ?? []) as ExistingAccountRow[]).map((account) =>
+        String(account.student_no).trim(),
+      ),
+    );
+
+    const accountsToInsert: AccountInsert[] = [];
+    const duplicates_detail: DuplicateDetail[] = [];
     let duplicate_count = 0;
 
     for (let i = 0; i < records.length; i++) {
       const record = records[i];
-      const student_no = String(record.student_no).trim();
-      
+      const student_no = record.student_no;
+      const name = record.name;
+
       if (existingStudentNos.has(student_no)) {
         duplicate_count++;
-        duplicates_detail.push({ row: i + 1, student_no });
+        duplicates_detail.push({
+          row: i + 2, // 對應實際 CSV 列號
+          student_no,
+        });
       } else {
         accountsToInsert.push({
-          student_no: student_no,
-          name: String(record.name).trim(),
-          email: `${student_no}@cloud.fju.edu.tw`, // Use @cloud.fju.edu.tw
-          password_hash: student_no, // Default password is student_no
+          student_no,
+          name,
+          email: `${student_no}@cloud.fju.edu.tw`,
+          password_hash: student_no,
           role: "student",
           status: "active",
-          class_id: Number(class_id),
+          class_id: numericClassId,
         });
-        // Add to set to handle duplicates within the CSV itself
+
+        // 防止 CSV 內自己重複
         existingStudentNos.add(student_no);
       }
     }
 
     if (accountsToInsert.length > 0) {
-        const { error } = await supabase.from("accounts").insert(accountsToInsert);
-        if (error) throw error;
+      const { error: insertError } = await supabase
+        .from("accounts")
+        .insert(accountsToInsert);
+
+      if (insertError) throw insertError;
     }
-    const imported_count = accountsToInsert.length;
 
     return NextResponse.json({
       ok: true,
       result: {
-        imported_count,
+        imported_count: accountsToInsert.length,
         duplicate_count,
         duplicates_detail,
       },
     });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "未知錯誤";
 
-  } catch (error: any) {
     console.error("Import API Error:", error);
-    return NextResponse.json({ ok: false, error: "伺服器錯誤: " + error.message }, { status: 500 });
+
+    return NextResponse.json(
+      { ok: false, error: "伺服器錯誤: " + message },
+      { status: 500 },
+    );
   }
 }
