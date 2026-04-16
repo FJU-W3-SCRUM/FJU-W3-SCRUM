@@ -18,13 +18,30 @@ export default function AuthLayout({
   children: React.ReactNode;
   onLogout: () => void;
 }) {
-  const menu = [
-    { key: "classes", label: "班別設定" },
-    { key: "groups", label: "分組設定" },
-    { key: "accounts", label: "帳號管理" },
-    { key: "class_mode", label: "上課模式" },
-    { key: "report_mode", label: "報告模式" },
-  ];
+  // Get menu items based on user role
+  const getMenuItems = () => {
+    const adminTeacherMenu = [
+      { key: "classes", label: "班別設定" },
+      { key: "groups", label: "分組設定" },
+      { key: "accounts", label: "帳號管理" },
+      { key: "class_mode", label: "上課模式" },
+      { key: "report_mode", label: "報告模式" },
+    ];
+
+    const studentMenu = [
+      { key: "class_mode", label: "上課模式" },
+      { key: "report_mode", label: "報告模式" },
+    ];
+
+    // admin 和 teacher 顯示完整菜單，其他角色（包括 student）顯示學生菜單
+    const role = user?.role?.toLowerCase() || "student";
+    if (role === "admin" || role === "teacher") {
+      return adminTeacherMenu;
+    }
+    return studentMenu;
+  };
+
+  const menu = getMenuItems();
 
   const [open, setOpen] = useState(false);
 
@@ -49,14 +66,25 @@ export default function AuthLayout({
       )}
 
       <aside className={`bg-white md:w-64 p-4 z-50 ${open ? "fixed inset-y-0 left-0 w-64" : "hidden md:block"}`}>
-        <div className="mb-6">
-          <div className="font-medium text-[#003366]">{user?.name ?? user?.student_no}</div>
-          <div className="text-sm text-gray-500">{user?.role ?? "student"}</div>
+        <div className="mb-6 border-b pb-4">
+          <div className="font-medium text-[#003366] text-sm">{user?.name ?? user?.student_no}</div>
+          <div className="text-xs text-gray-500 mt-1">學號: {user?.student_no}</div>
+          <div className="text-xs bg-blue-100 text-blue-800 inline-block px-2 py-1 rounded mt-2">
+            {user?.role === "admin" ? "管理員" : user?.role === "teacher" ? "教師" : "學生"}
+          </div>
         </div>
 
         <nav className="space-y-2">
           {menu.map((m) => (
-            <div key={m.key} onClick={() => { setActive(m.key); setOpen(false); }} className={`py-2 text-sm ${active===m.key? 'font-semibold text-black': 'text-[#003366] hover:text-black'} cursor-pointer`}>
+            <div 
+              key={m.key} 
+              onClick={() => { setActive(m.key); setOpen(false); }} 
+              className={`py-2 px-3 text-sm rounded cursor-pointer transition-colors ${
+                active === m.key 
+                  ? 'font-semibold text-white bg-[#003366]' 
+                  : 'text-[#003366] hover:bg-gray-100'
+              }`}
+            >
               {m.label}
             </div>
           ))}
@@ -65,7 +93,7 @@ export default function AuthLayout({
         <div className="mt-6">
           <button
             onClick={onLogout}
-            className="text-sm text-white px-3 py-1 rounded bg-red-600"
+            className="text-sm text-white px-3 py-2 rounded bg-red-600 hover:bg-red-700 w-full"
           >
             登出
           </button>
@@ -78,8 +106,14 @@ export default function AuthLayout({
         {active === "classes" && <ClassesPanel />}
         {active === "import" && <ImportCsvForm />}
         {active === "groups" && <GroupsPanel />}
-        {active === "class_mode" && <div className="bg-white p-4 rounded shadow">上課模式設定（待實作）</div>}
-        {active === "report_mode" && <div className="bg-white p-4 rounded shadow">報告模式設定（待實作）</div>}
+        {active === "class_mode" && <div className="bg-white p-4 rounded shadow">
+          <h2 className="text-lg font-semibold mb-4">上課模式</h2>
+          <p className="text-gray-600">上課模式設定（待實作）</p>
+        </div>}
+        {active === "report_mode" && <div className="bg-white p-4 rounded shadow">
+          <h2 className="text-lg font-semibold mb-4">報告模式</h2>
+          <p className="text-gray-600">報告模式設定（待實作）</p>
+        </div>}
       </main>
     </div>
   );

@@ -19,12 +19,29 @@
 ### SP1002、SP1003 Spec
  
 - 由網頁主頁(index/Login頁)登入
-- 登入提供後門(joery,..) <這裡不變>
+- 登入提供後門帳號
+  - admin:joery/1234
+  - student:st01/1234
+  - 也可不用密碼
+
 - 登入後自動驗證及到supabase DB, @TableSchema.md accounts 
-- 帶出 學生名字, (學號)  ;角色
+  - 登入後暫用明碼與資料庫@TableSchema.md accounts 驗證是否合法登入，帳/密錯誤請顯示訊息
+  - 比對欄位：
+    - 帳號：accounts.student_no
+    - 密碼：accounts.password_hash
+  
+- 成功登入後 , 帶出 學生名字, (學號)  ;角色，並依以下功能權限顯示功能表
 - 功能選單依角色授權的程式功能如下：
-  - admin、 teacher：班別設定、分組設定、帳號管理、上課模式、報告模式
-  - student：上課模式、報告模式
+  - admin、 teacher：
+    - 班別設定
+    - 分組設定
+    - 帳號管理
+    - 上課模式
+    - 報告模式
+  
+  - student：
+    - 上課模式
+    - 報告模式
 
 
 
