@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --input-text: #171717;
 }
 
 @theme inline {
@@ -14,13 +19,66 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #1a1a1a;
+    --foreground: #e5e5e5;
+    --card-bg: #2d2d2d;
+    --card-border: #404040;
+    --input-bg: #3a3a3a;
+    --input-border: #505050;
+    --input-text: #e5e5e5;
   }
+}
+
+html {
+  color-scheme: light dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 确保卡片在暗色系下可见 */
+.bg-white {
+  @apply dark:bg-gray-800;
+}
+
+/* 确保输入框在暗色系下可见 */
+input,
+textarea,
+select {
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border-color: var(--input-border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--input-text);
+  opacity: 0.6;
+}
+
+/* 确保文本在暗色系下可见 */
+.text-gray-600 {
+  @apply dark:text-gray-400;
+}
+
+.text-gray-500 {
+  @apply dark:text-gray-400;
+}
+
+.text-gray-700 {
+  @apply dark:text-gray-300;
+}
+
+/* 按钮样式 */
+button {
+  transition: all 0.2s ease;
+}
+
+/* 链接样式 */
+a {
+  @apply dark:text-blue-400;
 }
