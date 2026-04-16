@@ -48,13 +48,16 @@ export default function AuthLayout({
   const [active, setActive] = useState<string>("home");
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col md:flex-row bg-white dark:bg-gray-900">
       {/* Top bar for small screens */}
-      <header className="w-full bg-[#003366] text-white md:hidden flex items-center justify-between px-4 py-3">
+      <header className="w-full bg-[#003366] dark:bg-blue-900 text-white md:hidden flex items-center justify-between px-4 py-3 shadow-md">
         <div className="font-bold">學校互動評分系統</div>
         <div className="flex items-center gap-3">
           <div className="text-sm">{user?.name ?? user?.student_no}</div>
-          <button onClick={() => setOpen((v) => !v)} className="px-2 py-1 bg-[#D4AF37] text-[#003366] rounded">
+          <button 
+            onClick={() => setOpen((v) => !v)} 
+            className="px-2 py-1 bg-[#D4AF37] dark:bg-amber-500 text-[#003366] dark:text-blue-900 rounded hover:opacity-90 transition-opacity"
+          >
             菜單
           </button>
         </div>
@@ -65,11 +68,13 @@ export default function AuthLayout({
         <div className="md:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
       )}
 
-      <aside className={`bg-white md:w-64 p-4 z-50 ${open ? "fixed inset-y-0 left-0 w-64" : "hidden md:block"}`}>
-        <div className="mb-6 border-b pb-4">
-          <div className="font-medium text-[#003366] text-sm">{user?.name ?? user?.student_no}</div>
-          <div className="text-xs text-gray-500 mt-1">學號: {user?.student_no}</div>
-          <div className="text-xs bg-blue-100 text-blue-800 inline-block px-2 py-1 rounded mt-2">
+      <aside className={`bg-white dark:bg-gray-800 md:w-64 p-4 z-50 border-r border-gray-200 dark:border-gray-700 ${
+        open ? "fixed inset-y-0 left-0 w-64" : "hidden md:block"
+      }`}>
+        <div className="mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+          <div className="font-medium text-[#003366] dark:text-blue-400 text-sm">{user?.name ?? user?.student_no}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">學號: {user?.student_no}</div>
+          <div className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 inline-block px-2 py-1 rounded mt-2">
             {user?.role === "admin" ? "管理員" : user?.role === "teacher" ? "教師" : "學生"}
           </div>
         </div>
@@ -81,8 +86,8 @@ export default function AuthLayout({
               onClick={() => { setActive(m.key); setOpen(false); }} 
               className={`py-2 px-3 text-sm rounded cursor-pointer transition-colors ${
                 active === m.key 
-                  ? 'font-semibold text-white bg-[#003366]' 
-                  : 'text-[#003366] hover:bg-gray-100'
+                  ? 'font-semibold text-white bg-[#003366] dark:bg-blue-700' 
+                  : 'text-[#003366] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               {m.label}
@@ -93,27 +98,31 @@ export default function AuthLayout({
         <div className="mt-6">
           <button
             onClick={onLogout}
-            className="text-sm text-white px-3 py-2 rounded bg-red-600 hover:bg-red-700 w-full"
+            className="text-sm text-white px-3 py-2 rounded bg-red-600 dark:bg-red-700 hover:bg-red-700 dark:hover:bg-red-600 w-full transition-colors"
           >
             登出
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 p-6 bg-gradient-to-b from-white to-zinc-50">
+      <main className="flex-1 p-6 bg-gray-50 dark:bg-gray-900 transition-colors">
         {active === "home" && children}
         {active === "accounts" && <AccountsPanel />}
         {active === "classes" && <ClassesPanel />}
         {active === "import" && <ImportCsvForm />}
         {active === "groups" && <GroupsPanel />}
-        {active === "class_mode" && <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-lg font-semibold mb-4">上課模式</h2>
-          <p className="text-gray-600">上課模式設定（待實作）</p>
-        </div>}
-        {active === "report_mode" && <div className="bg-white p-4 rounded shadow">
-          <h2 className="text-lg font-semibold mb-4">報告模式</h2>
-          <p className="text-gray-600">報告模式設定（待實作）</p>
-        </div>}
+        {active === "class_mode" && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow-md border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">上課模式</h2>
+            <p className="text-gray-600 dark:text-gray-400">上課模式設定（待實作）</p>
+          </div>
+        )}
+        {active === "report_mode" && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow-md border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">報告模式</h2>
+            <p className="text-gray-600 dark:text-gray-400">報告模式設定（待實作）</p>
+          </div>
+        )}
       </main>
     </div>
   );
