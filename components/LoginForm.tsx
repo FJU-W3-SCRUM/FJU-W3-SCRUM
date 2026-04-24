@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 
 export type Account = {
-  student_no: string;
+  id?: string; student_no: string;
   name?: string;
   role?: "teacher" | "student" | "admin";
 };

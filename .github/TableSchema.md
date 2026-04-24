@@ -139,7 +139,7 @@ Notes:
 | session_id | BIGINT (FK) | 課堂 ID |
 | student_no | VARCHAR(50) (FK) | 學號 / 登入帳號 |
 | raised_at | DATETIME | 舉手時間 |
-| is_selected | BOOLEAN | 是否被點名 |
+| status | VARCHAR(16) | 是否被點名 ,DEFAULT 'pending' -- 'pending', 'cleared', 'answered'|
 
 ✅ 用於統計：
 
