@@ -32,14 +32,24 @@ export default function SessionPage() {
          const user = JSON.parse(userStr);
          setCurrentUser(user);
          setCurrentUserAccountId(user.id);
-         setCanManage(user.role === 'admin' || user.role === 'teacher');
+         const isTeacher = user.role === 'admin' || user.role === 'teacher';
+         setCanManage(isTeacher);
+         
+         // Record session start time if teacher enters and session hasn't started
+         if (isTeacher && session_id) {
+            fetch('/api/hands-up/update-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id, session_action: 'start_session' })
+            }).catch(err => console.error("Auto-start session failed", err));
+         }
       } else {
          router.push('/');
       }
     } catch(e) {
       router.push('/');
     }
-  }, [router]);
+  }, [router, session_id]);
   
   const [initialQueue, setInitialQueue] = useState<any[]>([]);
   const [initialMembers, setInitialMembers] = useState<any[]>([]);
@@ -182,6 +192,23 @@ export default function SessionPage() {
     }
   };
 
+  const handleEndSession = async () => {
+    if (!confirm("確定要結束此課堂嗎？結束後將無法再進行互動。")) return;
+    try {
+      const res = await fetch('/api/hands-up/update-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, session_action: 'end_session' })
+      });
+      if (res.ok) {
+        alert("課堂已結束");
+        router.push('/');
+      }
+    } catch(e) {
+      console.error("Failed to end session", e);
+    }
+  };
+
   // Convert array members to a fast map for the HandsUpQueue
   const membersMap: Record<string, any> = {};
   members.forEach(m => membersMap[m.id] = m);
@@ -253,6 +280,10 @@ export default function SessionPage() {
                  
                  <button onClick={handleClearHands} className="px-4 py-2 bg-red-50 text-red-600 font-bold rounded-lg border border-red-200 hover:bg-red-100">
                     🧹 放下所有舉手
+                 </button>
+
+                 <button onClick={handleEndSession} className="px-4 py-2 bg-gray-800 text-white font-bold rounded-lg hover:bg-black transition-colors">
+                    🏁 結束課堂
                  </button>
               </div>
            )}
