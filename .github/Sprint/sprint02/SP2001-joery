@@ -1,0 +1,27 @@
+#舉手老師/報告組頁優化
+
+# 老師/報告組模式
+- 『目前報告組別』:目前下拉選單無資料,我將提供SQL邏輯供參考,使用value=B.id, desplay=B.group_name, 而若有 A.status = 'R' 帶出預設組別, 
+```SQL
+SELECT A.id AS session_id, B.class_id, B.id, B.group_name
+FROM sessions A
+INNER JOIN groups B
+ON B.class_id = A.class_id
+WHERE A.id = 3
+;
+```
+- 而下方列,組別,及成組,我將提供SQL邏輯供參考
+```SQL
+SELECT A.id AS session_id,  B.class_id, B.id, B.group_name, A.status, C.student_no, D.name
+  ,'(' + CAST(C.student_no AS VARCHAR(50)) + ')' + D.name AS member
+FROM sessions A
+INNER JOIN groups B
+ON B.class_id = A.class_id
+INNER JOIN group_members C
+ON C.group_id = B.id
+INNER JOIN accounts D
+ON D.student_no = C.student_no
+WHERE A.id = 3
+;
+``` 
+- 『開始報告』-進入時為可以按,  按下後改為 『結束報告』-->寫入sessions. 開始/結束欄位 , 若開始 status寫為:P,   結束->Y

@@ -12,10 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Backdoor accounts (明碼密碼)
-    const backdoorAccounts: Record<string, { name: string; role: string; password: string }> = {
-      joery: { name: "Joery (後門)", role: "admin", password: "1234" },
-      st01: { name: "ST01 Student (後門)", role: "student", password: "1234" },
-    };
+    const backdoorAccounts: Record<string, { id: string; name: string; role: string; password: string }> = { joery: { id: '1', name: 'Joery (Admin)', role: 'admin', password: '1234' }, st01: { id: '2', name: 'ST01 Student', role: 'student', password: '1234' } };
 
     // Check backdoor accounts first
     if (student_no in backdoorAccounts) {
@@ -25,9 +22,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
           ok: true, 
           user: { 
-            student_no, 
-            name: backdoor.name, 
-            role: backdoor.role 
+            id: backdoor.id, student_no, name: backdoor.name, role: backdoor.role 
           } 
         });
       } else {
@@ -38,7 +33,7 @@ export async function POST(request: Request) {
     // Query database with plaintext password comparison
     const { data, error } = await supabase
       .from("accounts")
-      .select("student_no,name,role,password_hash")
+      .select("id,student_no,name,role,password_hash")
       .eq("student_no", student_no)
       .limit(1)
       .maybeSingle();
@@ -66,6 +61,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       ok: true, 
       user: { 
+        id: data.id,
         student_no: data.student_no, 
         name: data.name, 
         role: data.role 
