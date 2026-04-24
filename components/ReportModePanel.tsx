@@ -49,7 +49,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
         .from("sessions")
         .select("id, status")
         .in("class_id", classIds)
-        .eq("status", "active")
+        .in("status", ["R", "P", "active"])
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
@@ -145,7 +145,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
          .insert([{
              class_id: selectedClassId,
              title: `課堂互動 - ${new Date().toLocaleDateString()}`,
-             status: 'active',
+             status: 'R',
              qna_open: true,
              starts_at: new Date().toISOString()
          }])

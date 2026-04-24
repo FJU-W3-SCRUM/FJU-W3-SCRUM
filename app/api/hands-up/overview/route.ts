@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     // Look up the underlying class_id from this session
     const { data: sessionInfo, error: sessionError } = await supabase
       .from('sessions')
-      .select('class_id, qna_open')
+      .select('class_id, qna_open, title, status, classes!inner(class_name)')
       .eq('id', session_id)
       .single();
 
@@ -22,6 +22,24 @@ export async function GET(request: Request) {
     }
 
     const { class_id } = sessionInfo;
+    const session_status = sessionInfo.status;
+
+    const { data: sgData } = await supabase
+      .from('session_groups')
+      .select('group_id, status, started_at, ended_at')
+      .eq('session_id', session_id)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+      
+    const presenting_group_id = sgData ? sgData.group_id : null;
+    const presenting_status = sgData?.status || 'N';
+
+    const { data: availableGroups } = await supabase
+      .from('groups')
+      .select('id, group_name')
+      .eq('class_id', class_id)
+      .order('group_name', { ascending: true });
 
     // 1. Get class_members corresponding to the given class
     // This will represent total students to populate the overview grid
@@ -111,7 +129,12 @@ export async function GET(request: Request) {
     return NextResponse.json({
        session_id,
        class_id,
+       class_name: Array.isArray(sessionInfo.classes) ? sessionInfo.classes[0]?.class_name : (sessionInfo.classes as any)?.class_name || "未知班級",
        qna_open: sessionInfo.qna_open,
+       session_status,
+       presenting_group_id,
+       presenting_status,
+       available_groups: availableGroups || [],
        members: Object.values(memberMap),
        hands_up_queue: pendingHands
     }, { status: 200 });

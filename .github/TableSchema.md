@@ -126,6 +126,9 @@ Notes:
 | id | BIGINT (PK) | ID |
 | session_id | BIGINT (FK) | 課堂 ID |
 | group_id | BIGINT (FK) | 本堂課報告組 |
+| status | VARCHAR(1) | 'N': 未報告, 'P': 報告中, 'Y': 已報告 (Default: 'N') |
+| started_at | DATETIME | 報告開始時間 |
+| ended_at | DATETIME | 報告結束時間 |
 
 ---
 
