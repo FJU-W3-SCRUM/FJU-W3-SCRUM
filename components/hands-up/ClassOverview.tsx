@@ -27,8 +27,10 @@ export default function ClassOverview({ members, presentingGroupId }: OverviewPr
 
     members.forEach(m => {
       const gId = m.group?.id || 'ungrouped';
+      const gName = m.group?.name || '未分組 (Ungrouped)';
+
       if (!grouped[gId]) {
-        grouped[gId] = { id: gId, name: m.group!.name, members: [] };
+        grouped[gId] = { id: gId.toString(), name: gName, members: [] };
       }
       grouped[gId].members.push(m);
     });

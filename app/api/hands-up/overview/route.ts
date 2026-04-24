@@ -3,17 +3,17 @@ import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 
 export async function GET(request: Request) {
   try {
-        const url = new URL(request.url);
+    const url = new URL(request.url);
     const session_id = url.searchParams.get('session_id');
 
     if (!session_id) {
       return NextResponse.json({ error: 'Missing session_id parameter' }, { status: 400 });
     }
 
-    // Look up the underlying class_id from this session
+    // 1. Fetch Session Info
     const { data: sessionInfo, error: sessionError } = await supabase
       .from('sessions')
-      .select('class_id, qna_open, title, status, classes!inner(class_name)')
+      .select('*')
       .eq('id', session_id)
       .single();
 
@@ -21,12 +21,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: sessionError ? sessionError.message : 'Session not found' }, { status: 404 });
     }
 
-    const { class_id } = sessionInfo;
+    const class_id = sessionInfo.class_id;
     const session_status = sessionInfo.status;
 
+    // 2. Fetch Class Name
+    const { data: classInfo } = await supabase
+      .from('classes')
+      .select('class_name')
+      .eq('id', class_id)
+      .single();
+    
+    const class_name = classInfo?.class_name || "未知班級";
+
+    // 3. Fetch Presenting Group Status
     const { data: sgData } = await supabase
       .from('session_groups')
-      .select('group_id, status, started_at, ended_at')
+      .select('group_id, status')
       .eq('session_id', session_id)
       .order('id', { ascending: false })
       .limit(1)
@@ -35,14 +45,16 @@ export async function GET(request: Request) {
     const presenting_group_id = sgData ? sgData.group_id : null;
     const presenting_status = sgData?.status || 'N';
 
+    // 4. Fetch Available Groups
     const { data: availableGroups } = await supabase
       .from('groups')
       .select('id, group_name')
       .eq('class_id', class_id)
       .order('group_name', { ascending: true });
 
-    // 1. Get class_members corresponding to the given class
-    // This will represent total students to populate the overview grid
+    const groupIds = availableGroups?.map(g => g.id) || [];
+
+    // 5. Fetch Class Members
     const { data: classMembers, error: membersError } = await supabase
       .from('class_members')
       .select(`
@@ -59,24 +71,23 @@ export async function GET(request: Request) {
 
     if (membersError) throw new Error(`membersError: ${membersError.message}`);
 
-    // 2. Get group associations
+    // 6. Fetch Group Memberships (using student_no as per actual schema)
     const { data: groupMembers, error: groupsError } = await supabase
       .from('group_members')
       .select(`
-        account_id,
+        student_no,
         is_leader,
         group_id,
-        groups!inner (
+        groups (
           id,
-          group_name,
-          class_id
+          group_name
         )
       `)
-      .eq('groups.class_id', class_id); // we filter groups bound to this class
+      .in('group_id', groupIds);
 
     if (groupsError) throw new Error(`groupsError: ${groupsError.message}`);
 
-    // 3. Get pending hand raises for this specific session
+    // 7. Fetch Pending Hand Raises
     const { data: pendingHands, error: handsError } = await supabase
       .from('hand_raises')
       .select(`
@@ -87,15 +98,16 @@ export async function GET(request: Request) {
       `)
       .eq('session_id', session_id)
       .eq('status', 'pending')
-      .order('raised_at', { ascending: true }); // queue order earlier to late
+      .order('raised_at', { ascending: true });
 
     if (handsError) throw new Error(`handsError: ${handsError.message}`);
 
-    // Compute presentation: join accounts data with groups and active hands-up status
-    // A simplified map of `account_id` => data
+    // 8. Process Map
     const memberMap: any = {};
+    const memberByStudentNo: any = {};
+
     classMembers?.forEach((cm: any) => {
-      memberMap[cm.account_id] = {
+      const memberObj = {
         id: cm.account_id,
         name: cm.accounts.name,
         student_no: cm.accounts.student_no,
@@ -106,19 +118,24 @@ export async function GET(request: Request) {
         hand_raised: false,
         raised_at: null
       };
+      memberMap[cm.account_id] = memberObj;
+      memberByStudentNo[cm.accounts.student_no] = memberObj;
     });
 
     groupMembers?.forEach((gm: any) => {
-      if (memberMap[gm.account_id]) {
-        memberMap[gm.account_id].group = {
-          id: gm.group_id,
-          name: gm.groups.group_name
-        };
-        memberMap[gm.account_id].is_leader = gm.is_leader;
+      const targetMember = memberByStudentNo[gm.student_no];
+      if (targetMember) {
+        const g = Array.isArray(gm.groups) ? gm.groups[0] : gm.groups;
+        if (g) {
+          targetMember.group = {
+            id: gm.group_id,
+            name: g.group_name
+          };
+        }
+        targetMember.is_leader = gm.is_leader;
       }
     });
 
-    // Populate hands up data tracking
     pendingHands?.forEach((h: any) => {
       if (memberMap[h.account_id]) {
          memberMap[h.account_id].hand_raised = true;
@@ -129,7 +146,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
        session_id,
        class_id,
-       class_name: Array.isArray(sessionInfo.classes) ? sessionInfo.classes[0]?.class_name : (sessionInfo.classes as any)?.class_name || "未知班級",
+       class_name,
        qna_open: sessionInfo.qna_open,
        session_status,
        presenting_group_id,
@@ -140,6 +157,7 @@ export async function GET(request: Request) {
     }, { status: 200 });
 
   } catch (err: any) {
+    console.error("API Error in overview:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

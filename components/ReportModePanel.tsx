@@ -146,7 +146,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
              class_id: selectedClassId,
              title: `課堂互動 - ${new Date().toLocaleDateString()}`,
              status: 'R',
-             qna_open: true,
+             qna_open: false,
              starts_at: new Date().toISOString()
          }])
          .select()

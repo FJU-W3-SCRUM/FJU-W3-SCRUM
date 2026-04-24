@@ -19,7 +19,7 @@ export default function SessionPage() {
   const [currentUserAccountId, setCurrentUserAccountId] = useState('');
   
   const [className, setClassName] = useState('');
-  const [qnaOpen, setQnaOpen] = useState(true);
+  const [qnaOpen, setQnaOpen] = useState(false);
   const [presentingGroupId, setPresentingGroupId] = useState<string | null>(null);
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
   const [presentingStatus, setPresentingStatus] = useState<'N'|'P'|'Y'>('N');
