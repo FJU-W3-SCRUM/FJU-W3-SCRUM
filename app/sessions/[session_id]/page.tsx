@@ -95,11 +95,22 @@ export default function SessionPage() {
   const handleChangePresentingGroup = async (e: any) => {
     const newVal = e.target.value;
     setPresentingGroupId(newVal);
+    setPresentingStatus('N'); // Reset status for the new group
+    
+    // Auto-close Q&A on group change
+    if (qnaOpen) {
+      setQnaOpen(false);
+    }
+
     try {
       await fetch('/api/hands-up/update-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id, presenting_group_id: newVal })
+        body: JSON.stringify({ 
+          session_id, 
+          presenting_group_id: newVal,
+          qna_open: false // Force close in DB as well
+        })
       });
     } catch(e) { }
   };
@@ -210,7 +221,7 @@ export default function SessionPage() {
                         className="border border-gray-300 rounded p-1 text-sm bg-white"
                         value={presentingGroupId || ""}
                         onChange={handleChangePresentingGroup}
-                        disabled={!canManage}
+                        disabled={!canManage || presentingStatus === 'P'}
                     >
                         <option value="">-- 無 --</option>
                         {availableGroups.map((g: any) => (
@@ -225,14 +236,6 @@ export default function SessionPage() {
                         {presentingStatus === 'P' ? '結束報告' : (presentingStatus === 'Y' ? '已完成' : '開始報告')}
                     </button>
                  </div>
-                 {presentingGroupId && (
-                   <div className="text-xs text-gray-500 flex gap-2 overflow-x-auto max-w-md">
-                      <span className="font-bold">成員:</span>
-                      {members.filter(m => m.group?.id?.toString() === presentingGroupId.toString()).map(m => (
-                        <span key={m.id}>({m.student_no}){m.name}</span>
-                      ))}
-                   </div>
-                 )}
              </div>
            </div>
            
