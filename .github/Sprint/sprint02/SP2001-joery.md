@@ -200,3 +200,4 @@ WHERE A.student_no = @student_no  -- ex: '414155259'
 - 3. [ ] 有人按下 "我要舉手"/ "放下" 時，每一個不同登入的 client 都要透過web socket自動更新畫面成員舉手的 
 - 4. [ ] 老師、報告組組長按下 開放舉手(開/關),每一個不同登入的 client 都要透過web socket自動更新畫面
   - 4.1 [ ] 如果關閉"開放舉手" 應跟 "放下所有舉手" 一樣, 清除舉手之畫面, 對應的DB table hand_raises.status='P'
+- 5. [ ]  登入時 accounts.role 如果是 admin像 joery, 報告模式權限就跟老師的一樣
