@@ -54,24 +54,27 @@ export async function GET(request: Request) {
 
     const groupIds = availableGroups?.map(g => g.id) || [];
 
-    // 5. Fetch Class Members
-    const { data: classMembers, error: membersError } = await supabase
+    // 5. Fetch Class Members from accounts table (more reliable than class_members)
+    const { data: accounts, error: accountsError } = await supabase
+      .from('accounts')
+      .select('id, student_no, name')
+      .eq('class_id', class_id)
+      .eq('role', 'student');
+
+    if (accountsError) throw new Error(`accountsError: ${accountsError.message}`);
+
+    // Fetch seating info if available
+    const { data: seatData } = await supabase
       .from('class_members')
-      .select(`
-        account_id,
-        seat_row,
-        seat_col,
-        accounts!inner (
-          id,
-          student_no,
-          name
-        )
-      `)
+      .select('account_id, seat_row, seat_col')
       .eq('class_id', class_id);
 
-    if (membersError) throw new Error(`membersError: ${membersError.message}`);
+    const seatMap: Record<string, {row: number, col: number}> = {};
+    seatData?.forEach(s => {
+      seatMap[s.account_id] = { row: s.seat_row, col: s.seat_col };
+    });
 
-    // 6. Fetch Group Memberships (using student_no as per actual schema)
+    // 6. Fetch Group Memberships
     const { data: groupMembers, error: groupsError } = await supabase
       .from('group_members')
       .select(`
@@ -106,20 +109,21 @@ export async function GET(request: Request) {
     const memberMap: any = {};
     const memberByStudentNo: any = {};
 
-    classMembers?.forEach((cm: any) => {
+    accounts?.forEach((acc: any) => {
+      const seat = seatMap[acc.id];
       const memberObj = {
-        id: cm.account_id,
-        name: cm.accounts.name,
-        student_no: cm.accounts.student_no,
-        seat_row: cm.seat_row,
-        seat_col: cm.seat_col,
+        id: acc.id,
+        name: acc.name,
+        student_no: acc.student_no,
+        seat_row: seat?.row || null,
+        seat_col: seat?.col || null,
         group: null,
         is_leader: false,
         hand_raised: false,
         raised_at: null
       };
-      memberMap[cm.account_id] = memberObj;
-      memberByStudentNo[cm.accounts.student_no] = memberObj;
+      memberMap[acc.id] = memberObj;
+      memberByStudentNo[acc.student_no] = memberObj;
     });
 
     groupMembers?.forEach((gm: any) => {

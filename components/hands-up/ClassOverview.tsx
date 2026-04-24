@@ -59,7 +59,7 @@ export default function ClassOverview({ members, presentingGroupId }: OverviewPr
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-xl font-bold mb-4 text-gray-800">👥 分組報告模式狀態</h2>
+      <h2 className="text-xl font-bold mb-4 text-gray-800">👥 分組成員</h2>
       
       <div className="flex flex-wrap gap-4">
         {groupedMembers.map(g => {
