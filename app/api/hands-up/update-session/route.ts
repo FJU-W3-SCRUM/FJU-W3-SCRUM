@@ -9,6 +9,14 @@ export async function POST(request: Request) {
     // 1. Toggle Q&A state
     if (qna_open !== undefined) {
        await supabase.from('sessions').update({ qna_open }).eq('id', session_id);
+       
+       // Task 4.1: If closing Q&A, also clear all current hand raises (R -> P)
+       if (qna_open === false) {
+           await supabase.from('hand_raises')
+                .update({ status: 'P' })
+                .eq('session_id', session_id)
+                .eq('status', 'R');
+       }
     }
     
     // 2. Changing the selected group

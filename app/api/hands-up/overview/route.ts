@@ -100,7 +100,7 @@ export async function GET(request: Request) {
         status
       `)
       .eq('session_id', session_id)
-      .eq('status', 'pending')
+      .eq('status', 'R')
       .order('raised_at', { ascending: true });
 
     if (handsError) throw new Error(`handsError: ${handsError.message}`);
@@ -120,6 +120,7 @@ export async function GET(request: Request) {
         group: null,
         is_leader: false,
         hand_raised: false,
+        hand_raise_id: null,
         raised_at: null
       };
       memberMap[acc.id] = memberObj;
@@ -143,6 +144,7 @@ export async function GET(request: Request) {
     pendingHands?.forEach((h: any) => {
       if (memberMap[h.account_id]) {
          memberMap[h.account_id].hand_raised = true;
+         memberMap[h.account_id].hand_raise_id = h.id;
          memberMap[h.account_id].raised_at = h.raised_at;
       }
     });
