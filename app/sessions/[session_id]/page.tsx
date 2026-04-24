@@ -16,6 +16,7 @@ export default function SessionPage() {
   
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [canManage, setCanManage] = useState(false);
+  const [isReportingLeader, setIsReportingLeader] = useState(false);
   const [currentUserAccountId, setCurrentUserAccountId] = useState('');
   
   const [className, setClassName] = useState('');
@@ -32,21 +33,70 @@ export default function SessionPage() {
          const user = JSON.parse(userStr);
          setCurrentUser(user);
          setCurrentUserAccountId(user.id);
-         setCanManage(user.role === 'admin' || user.role === 'teacher');
+         const isTeacher = user.role === 'admin' || user.role === 'teacher';
+         setCanManage(isTeacher);
+         
+         // Record session start time if teacher enters and session hasn't started
+         if (isTeacher && session_id) {
+            fetch('/api/hands-up/update-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id, session_action: 'start_session' })
+            }).catch(err => console.error("Auto-start session failed", err));
+         }
       } else {
          router.push('/');
       }
     } catch(e) {
       router.push('/');
     }
-  }, [router]);
-  
+  }, [router, session_id]);
+
   const [initialQueue, setInitialQueue] = useState<any[]>([]);
   const [initialMembers, setInitialMembers] = useState<any[]>([]);
   
-  // Custom hook for < 1sec sync (Supabase postgres_changes)
-  const { queue, members } = useHandsUpSync({ sessionId: session_id, initialQueue, initialMembers });
+  // Define update logic in a shared function
+  const updateUIFromData = (data: any) => {
+    if(!data || data.error) return;
+    setClassName(data.class_name || "");
+    setQnaOpen(data.qna_open !== false);
+    
+    const dbGroupId = data.presenting_group_id?.toString() || null;
+    const sessionStatus = data.session_status || '';
+    const groups = data.available_groups || [];
+    
+    setPresentingStatus(data.presenting_status || 'N');
+    setSessionStatus(sessionStatus);
+    setAvailableGroups(groups);
 
+    // Group selection persistence
+    if (!dbGroupId && sessionStatus === 'R' && groups.length > 0) {
+       setPresentingGroupId(groups[0].id.toString());
+    } else {
+       setPresentingGroupId(dbGroupId);
+    }
+  };
+
+  // Custom hook for < 1sec sync (Supabase WebSocket)
+  const { queue, members, refresh } = useHandsUpSync({ 
+      sessionId: session_id, 
+      initialQueue, 
+      initialMembers,
+      onDataUpdate: updateUIFromData 
+  });
+
+  useEffect(() => {
+     // Check if current student is the leader of the reporting group
+     if (currentUser && presentingGroupId && members.length > 0) {
+        const myInfo = members.find(m => m.student_no === currentUser.student_no);
+        const isLeader = myInfo?.is_leader && myInfo?.group?.id?.toString() === presentingGroupId.toString();
+        setIsReportingLeader(!!isLeader);
+     }
+  }, [currentUser, presentingGroupId, members]);
+
+  // Unified permission to control report/Q&A/Clear
+  const canControlReport = canManage || isReportingLeader;
+  
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<{accountId: string, handRaiseId: string} | null>(null);
 
@@ -56,25 +106,9 @@ export default function SessionPage() {
       .then(res => res.json())
       .then(data => {
           if(data && !data.error) {
-           setClassName(data.class_name || "");
-           setQnaOpen(data.qna_open !== false);
-           
-           const dbGroupId = data.presenting_group_id?.toString() || null;
-           const sessionStatus = data.session_status || '';
-           const groups = data.available_groups || [];
-           
-           setPresentingStatus(data.presenting_status || 'N');
-           setSessionStatus(sessionStatus);
-           setAvailableGroups(groups);
            setInitialQueue(data.hands_up_queue || []);
            setInitialMembers(data.members || []);
-
-           // If session status is 'R' and no group is pre-selected, default to the first available group
-           if (!dbGroupId && sessionStatus === 'R' && groups.length > 0) {
-              setPresentingGroupId(groups[0].id.toString());
-           } else {
-              setPresentingGroupId(dbGroupId);
-           }
+           updateUIFromData(data);
          }
       })
       .catch(err => console.error("Initial load failed", err));
@@ -89,6 +123,7 @@ export default function SessionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id, qna_open: newState })
       });
+      refresh();
     } catch(e) { }
   };
 
@@ -112,6 +147,7 @@ export default function SessionPage() {
           qna_open: false // Force close in DB as well
         })
       });
+      refresh();
     } catch(e) { }
   };
 
@@ -126,6 +162,7 @@ export default function SessionPage() {
       });
       if (res.ok) {
         setPresentingStatus(action === 'start' ? 'P' : 'Y');
+        refresh();
       }
     } catch (e) {
       console.error('Failed to update report status', e);
@@ -133,14 +170,31 @@ export default function SessionPage() {
   };
 
   const handleRaiseHand = async () => {
-    try {
-      await fetch('/api/hands-up', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id, account_id: currentUserAccountId })
-      });
-    } catch(e) {
-      console.error(e);
+    // Check if hand is already raised
+    const isRaised = queue.some(h => h.account_id === currentUserAccountId);
+    
+    if (isRaised) {
+       // Put down
+       try {
+         await fetch(`/api/hands-up?session_id=${session_id}&account_id=${currentUserAccountId}`, {
+           method: 'DELETE'
+         });
+         refresh();
+       } catch(e) {
+         console.error(e);
+       }
+    } else {
+       // Raise
+       try {
+         await fetch('/api/hands-up', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ session_id, account_id: currentUserAccountId })
+         });
+         refresh();
+       } catch(e) {
+         console.error(e);
+       }
     }
   };
 
@@ -151,6 +205,7 @@ export default function SessionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id })
       });
+      refresh();
     } catch(e) {
       console.error(e);
     }
@@ -174,11 +229,29 @@ export default function SessionPage() {
           stars
         })
       });
+      refresh();
     } catch(e) {
        console.error("Failed rating", e);
     } finally {
        setRatingModalOpen(false);
        setRatingTarget(null);
+    }
+  };
+
+  const handleEndSession = async () => {
+    if (!confirm("確定要結束此課堂嗎？結束後將無法再進行互動。")) return;
+    try {
+      const res = await fetch('/api/hands-up/update-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, session_action: 'end_session' })
+      });
+      if (res.ok) {
+        alert("課堂已結束");
+        router.push('/');
+      }
+    } catch(e) {
+      console.error("Failed to end session", e);
     }
   };
 
@@ -195,15 +268,17 @@ export default function SessionPage() {
   return (
     <AuthLayout user={currentUser} onLogout={() => { localStorage.removeItem('ch_user'); router.push('/'); }}>
       <HandsUpInteractiveLayout 
-        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} />}
+        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} />}
         queueView={
           <HandsUpQueue 
             queue={queue} 
             membersMap={membersMap} 
-            canManage={canManage} 
+            canManage={canControlReport} 
             qnaOpen={qnaOpen}
             onRaiseHand={handleRaiseHand}
             onSelectStudent={handleSelectStudentForRating}
+            showRaiseHand={!canManage && !isReportingLeader}
+            currentUserAccountId={currentUserAccountId}
           />
         }
       >
@@ -228,34 +303,44 @@ export default function SessionPage() {
                           <option key={g.id} value={g.id}>{g.group_name}</option>
                         ))}
                     </select>
-                    <button
-                        onClick={handleReportToggle}
-                        disabled={!canManage || !presentingGroupId || presentingStatus === 'Y'}
-                        className={`px-3 py-1 rounded text-sm font-semibold transition ${presentingStatus === 'P' ? 'bg-amber-400 text-white' : 'bg-green-600 text-white'} ${(!canManage || !presentingGroupId || presentingStatus === 'Y') ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
-                    >
-                        {presentingStatus === 'P' ? '結束報告' : (presentingStatus === 'Y' ? '已完成' : '開始報告')}
-                    </button>
+                    {canControlReport && (
+                      <button
+                          onClick={handleReportToggle}
+                          disabled={!presentingGroupId || presentingStatus === 'Y'}
+                          className={`px-3 py-1 rounded text-sm font-semibold transition ${presentingStatus === 'P' ? 'bg-amber-400 text-white' : 'bg-green-600 text-white'} ${(!presentingGroupId || presentingStatus === 'Y') ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
+                      >
+                          {presentingStatus === 'P' ? '結束報告' : (presentingStatus === 'Y' ? '已完成' : '開始報告')}
+                      </button>
+                    )}
                  </div>
              </div>
            </div>
            
-           {canManage && (
-              <div className="flex gap-2 items-center">
-                 <div className="mr-4 flex items-center gap-2">
-                    <span className="text-sm font-bold text-gray-700">開放舉手</span>
-                    <button 
-                       onClick={handleToggleQna}
-                       className={`w-12 h-6 rounded-full relative transition-colors ${qnaOpen ? 'bg-blue-500' : 'bg-gray-300'}`}
-                    >
-                       <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${qnaOpen ? 'left-7' : 'left-1'}`} />
-                    </button>
-                 </div>
-                 
-                 <button onClick={handleClearHands} className="px-4 py-2 bg-red-50 text-red-600 font-bold rounded-lg border border-red-200 hover:bg-red-100">
-                    🧹 放下所有舉手
+           <div className="flex gap-2 items-center">
+              {canControlReport && (
+                <>
+                  <div className="mr-4 flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-700">開放舉手</span>
+                      <button 
+                        onClick={handleToggleQna}
+                        className={`w-12 h-6 rounded-full relative transition-colors ${qnaOpen ? 'bg-blue-500' : 'bg-gray-300'}`}
+                      >
+                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${qnaOpen ? 'left-7' : 'left-1'}`} />
+                      </button>
+                  </div>
+                  
+                  <button onClick={handleClearHands} className="px-4 py-2 bg-red-50 text-red-600 font-bold rounded-lg border border-red-200 hover:bg-red-100">
+                      🧹 放下所有舉手
+                  </button>
+                </>
+              )}
+
+              {canManage && (
+                 <button onClick={handleEndSession} className="px-4 py-2 bg-gray-800 text-white font-bold rounded-lg hover:bg-black transition-colors">
+                    🏁 結束課堂
                  </button>
-              </div>
-           )}
+              )}
+           </div>
         </div>
       </HandsUpInteractiveLayout>
 

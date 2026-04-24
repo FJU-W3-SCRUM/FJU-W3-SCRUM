@@ -10,14 +10,16 @@ export interface ClassMember {
   seat_row: number | null;
   seat_col: number | null;
   hand_raised: boolean;
+  hand_raise_id?: string | null;
 }
 
 interface OverviewProps {
   members: ClassMember[];
   presentingGroupId?: string | null;
+  onRate?: (accountId: string, handRaiseId: string) => void;
 }
 
-export default function ClassOverview({ members, presentingGroupId }: OverviewProps) {
+export default function ClassOverview({ members, presentingGroupId, onRate }: OverviewProps) {
   // Grouping members by `group.id` and sorting
   const groupedMembers = useMemo(() => {
     const grouped: Record<string, { id: string, name: string, members: ClassMember[] }> = {};
@@ -93,7 +95,17 @@ export default function ClassOverview({ members, presentingGroupId }: OverviewPr
                       
                       {/* Indicator showing the Hand Raise */}
                       {member.hand_raised && (
-                         <span className="animate-bounce" title="舉手中">🙋‍♂️</span>
+                         onRate ? (
+                           <button 
+                             onClick={() => member.hand_raise_id && onRate(member.id, member.hand_raise_id)}
+                             className="animate-bounce hover:scale-125 transition-transform" 
+                             title="點名評分"
+                           >
+                             🙋‍♂️
+                           </button>
+                         ) : (
+                           <span className="animate-bounce" title="舉手中">🙋‍♂️</span>
+                         )
                       )}
                     </li>
                   ))}

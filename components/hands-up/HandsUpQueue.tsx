@@ -13,9 +13,23 @@ export interface HandsUpQueueProps {
   qnaOpen?: boolean;               // is qna available right now?
   onRaiseHand: () => void;
   onSelectStudent: (accountId: string, handRaiseId: string) => void; 
+  showRaiseHand?: boolean;
+  currentUserAccountId?: string;
 }
 
-export default function HandsUpQueue({ queue, membersMap, canManage, qnaOpen = true, onRaiseHand, onSelectStudent }: HandsUpQueueProps) {
+export default function HandsUpQueue({ 
+  queue, 
+  membersMap, 
+  canManage, 
+  qnaOpen = true, 
+  onRaiseHand, 
+  onSelectStudent, 
+  showRaiseHand = true,
+  currentUserAccountId
+}: HandsUpQueueProps) {
+  
+  const isMyHandRaised = queue.some(h => h.account_id === currentUserAccountId);
+
   return (
     <div className="flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow min-h-[400px]">
        <div className="flex justify-between items-center p-4 border-b bg-gray-100">
@@ -62,17 +76,26 @@ export default function HandsUpQueue({ queue, membersMap, canManage, qnaOpen = t
        </div>
 
        {/* User self control: Bottom Bar specifically for ordinary users to raise hands  */}
-       <div className="p-4 border-t bg-gray-50 flex flex-col items-center justify-center gap-2">
-         {qnaOpen ? (
-           <button onClick={onRaiseHand} className="w-full py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-sm">
-              🙋‍♂️ 我要舉手
-           </button>
-         ) : (
-           <button disabled className="w-full py-3 bg-gray-300 text-gray-500 font-bold rounded-lg cursor-not-allowed flex items-center justify-center gap-2 shadow-sm">
-              ⛔ Q&A 目前未開放
-           </button>
-         )}
-       </div>
+       {showRaiseHand && (
+         <div className="p-4 border-t bg-gray-50 flex flex-col items-center justify-center gap-2">
+           {qnaOpen ? (
+             <button 
+                onClick={onRaiseHand} 
+                className={`w-full py-3 font-bold rounded-lg active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm ${
+                    isMyHandRaised 
+                    ? 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+             >
+                {isMyHandRaised ? '放下舉手' : '🙋‍♂️ 我要舉手'}
+             </button>
+           ) : (
+             <button disabled className="w-full py-3 bg-gray-300 text-gray-500 font-bold rounded-lg cursor-not-allowed flex items-center justify-center gap-2 shadow-sm">
+                ⛔ Q&A 目前未開放
+             </button>
+           )}
+         </div>
+       )}
     </div>
   );
 }

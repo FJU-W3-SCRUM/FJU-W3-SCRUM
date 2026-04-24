@@ -23,48 +23,29 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
   const [groups, setGroups] = useState<{ id: string; group_name: string }[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   
+  const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const [message, setMessage] = useState("");
 
   // ============================
   // Student Flow
   // ============================
-  const checkStudentSession = async () => {
+  const fetchStudentSessions = async () => {
+    if (!user?.student_no) return;
     try {
-      // Find classes the student belongs to
-      const { data: memberData, error: memErr } = await supabase
-        .from("class_members")
-        .select("class_id")
-        .eq("account_id", accountId);
-
-      if (memErr || !memberData || memberData.length === 0) {
-        setMessage("您目前沒有加入任何班級。");
-        setLoading(false);
-        return;
-      }
-
-      const classIds = memberData.map((m) => m.class_id);
-
-      // Find an active session for those classes
-      const { data: sessionData, error: sessErr } = await supabase
-        .from("sessions")
-        .select("id, status")
-        .in("class_id", classIds)
-        .in("status", ["R", "P", "active"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (sessErr || !sessionData) {
+      setLoading(true);
+      const res = await fetch(`/api/hands-up/student-sessions?student_no=${user.student_no}`);
+      const data = await res.json();
+      
+      if (data.error) throw new Error(data.error);
+      
+      setAvailableSessions(data.sessions || []);
+      if (data.sessions?.length === 0) {
         setMessage("目前沒有進行中的報告模式，請稍候再試。");
-        setLoading(false);
-        return;
       }
-
-      // Found active session! Redirect.
-      router.push(`/sessions/${sessionData.id}`);
     } catch (e) {
       console.error(e);
-      setMessage("系統發生錯誤，請聯絡管理員。");
+      setMessage("系統發生錯誤，無法取得課堂資訊。");
+    } finally {
       setLoading(false);
     }
   };
@@ -114,16 +95,11 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
 
   useEffect(() => {
     if (role === "student") {
-       if (accountId) {
-          checkStudentSession();
-       } else {
-          setMessage("無法取得您的學號身分。");
-          setLoading(false);
-       }
+       fetchStudentSessions();
     } else {
        fetchTeacherClasses();
     }
-  }, [role, accountId]);
+  }, [role, user?.student_no]);
 
   useEffect(() => {
     if (selectedClassId) {
@@ -139,6 +115,16 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
     try {
        setLoading(true);
        
+       // 0. Auto-end existing unclosed sessions for this class
+       await supabase
+         .from("sessions")
+         .update({ 
+            ends_at: new Date().toISOString(),
+            status: 'closed'
+         })
+         .eq("class_id", selectedClassId)
+         .is("ends_at", null);
+
        // 1. Create a new session for this class
        const { data: newSession, error: sErr } = await supabase
          .from("sessions")
@@ -182,17 +168,46 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
   // Student rendering (if reached here, no active session found)
   if (role === "student") {
     return (
-      <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-md border border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">報告模式</h2>
-        <div className="py-8 text-center text-gray-600 dark:text-gray-400">
-          <p className="text-lg">{message}</p>
-          <button 
-             onClick={checkStudentSession}
-             className="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
-          >
+      <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-md border border-gray-200 dark:border-gray-700 w-full max-w-4xl">
+        <div className="flex justify-between items-center mb-6">
+           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">請選擇進行中的課堂</h2>
+           <button 
+             onClick={fetchStudentSessions}
+             className="px-3 py-1 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium"
+           >
              重新整理
-          </button>
+           </button>
         </div>
+
+        {availableSessions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {availableSessions.map((s) => (
+              <div 
+                key={s.id} 
+                className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer transition-colors bg-gray-50 dark:bg-gray-900 group"
+                onClick={() => router.push(`/sessions/${s.id}`)}
+              >
+                <div className="flex justify-between items-start">
+                   <div>
+                      <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200 group-hover:text-blue-600">{s.class_name}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title}</p>
+                   </div>
+                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded">
+                      正在進行中
+                   </span>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+                   <span>開始時間: {new Date(s.starts_at).toLocaleString()}</span>
+                   <span className="font-bold text-blue-600">點擊進入 &rarr;</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-gray-600 dark:text-gray-400">
+            <p className="text-lg">{message}</p>
+          </div>
+        )}
       </div>
     );
   }
