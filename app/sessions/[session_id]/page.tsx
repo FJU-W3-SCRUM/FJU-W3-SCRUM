@@ -123,6 +123,7 @@ export default function SessionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id, qna_open: newState })
       });
+      refresh();
     } catch(e) { }
   };
 
@@ -146,6 +147,7 @@ export default function SessionPage() {
           qna_open: false // Force close in DB as well
         })
       });
+      refresh();
     } catch(e) { }
   };
 
@@ -160,6 +162,7 @@ export default function SessionPage() {
       });
       if (res.ok) {
         setPresentingStatus(action === 'start' ? 'P' : 'Y');
+        refresh();
       }
     } catch (e) {
       console.error('Failed to update report status', e);

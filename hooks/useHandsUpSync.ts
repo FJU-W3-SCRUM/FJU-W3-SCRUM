@@ -38,6 +38,8 @@ export function useHandsUpSync({ sessionId, initialQueue = [], initialMembers = 
   useEffect(() => {
     if (!sessionId) return;
 
+    console.log(`[Supabase] Initializing WebSocket channel for session: ${sessionId}`);
+
     // Create a multi-table real-time channel
     const channel = supabase
       .channel(`session_sync_${sessionId}`)
@@ -45,23 +47,35 @@ export function useHandsUpSync({ sessionId, initialQueue = [], initialMembers = 
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'hand_raises', filter: `session_id=eq.${sessionId}` },
-        () => refresh()
+        (payload) => {
+          console.log('[Supabase] Hand raises change detected', payload.eventType);
+          refresh();
+        }
       )
       // 2. Listen to Session metadata (Q&A toggle, overall session status)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
-        () => refresh()
+        (payload) => {
+          console.log('[Supabase] Session metadata update detected', payload.new);
+          refresh();
+        }
       )
       // 3. Listen to Session Groups (Group change, Start/End report status)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'session_groups', filter: `session_id=eq.${sessionId}` },
-        () => refresh()
+        (payload) => {
+          console.log('[Supabase] Session groups change detected', payload.eventType);
+          refresh();
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`[Supabase] Channel status for session ${sessionId}:`, status);
+      });
 
     return () => {
+      console.log(`[Supabase] Cleaning up channel for session: ${sessionId}`);
       supabase.removeChannel(channel);
     };
   }, [sessionId]);

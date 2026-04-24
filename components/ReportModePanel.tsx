@@ -115,6 +115,16 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
     try {
        setLoading(true);
        
+       // 0. Auto-end existing unclosed sessions for this class
+       await supabase
+         .from("sessions")
+         .update({ 
+            ends_at: new Date().toISOString(),
+            status: 'closed'
+         })
+         .eq("class_id", selectedClassId)
+         .is("ends_at", null);
+
        // 1. Create a new session for this class
        const { data: newSession, error: sErr } = await supabase
          .from("sessions")

@@ -14,12 +14,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing session_id' }, { status: 400 });
     }
 
-    // Clear all pending hands for this specific session
+    // Clear all currently raised hands (R) for this specific session -> set to Put down (P)
     const { data, error } = await supabase
       .from('hand_raises')
-      .update({ status: 'cleared' })
+      .update({ status: 'P' })
       .eq('session_id', session_id)
-      .eq('status', 'pending')
+      .eq('status', 'R')
       .select();
 
     if (error) {
