@@ -61,7 +61,7 @@ export default function ClassOverview({ members, presentingGroupId, onRate }: Ov
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-xl font-bold mb-4 text-gray-800">👥 分組成員</h2>
+      <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">👥 分組成員</h2>
       
       <div className="flex flex-wrap gap-4">
         {groupedMembers.map(g => {
@@ -71,11 +71,15 @@ export default function ClassOverview({ members, presentingGroupId, onRate }: Ov
              <div 
                key={g.id} 
                className={`flex-1 min-w-[250px] max-w-[320px] rounded-lg shadow-sm border overflow-hidden ${
-                 isPresenting ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'
+                 isPresenting
+                   ? 'border-amber-300 bg-amber-50 dark:border-amber-400 dark:bg-amber-900'
+                   : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
                }`}
              >
                 <div className={`px-4 py-2 border-b font-semibold flex justify-between items-center ${
-                  isPresenting ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'
+                  isPresenting
+                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-800 dark:text-amber-200'
+                    : 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-100'
                 }`}>
                    <span>
                      📁 {g.name}
@@ -83,12 +87,12 @@ export default function ClassOverview({ members, presentingGroupId, onRate }: Ov
                    </span>
                 </div>
                 
-                <ul className="divide-y divide-gray-200/50 p-2">
+                <ul className="divide-y divide-gray-200/50 dark:divide-gray-700/50 p-2">
                   {g.members.map(member => (
                     <li key={member.id} className="px-2 py-1.5 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-800">{member.name}</span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{member.name}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-300">
                           ({member.student_no}) {member.is_leader && <span className="font-bold text-amber-500">&lt;組長&gt;</span>}
                         </span>
                       </div>
