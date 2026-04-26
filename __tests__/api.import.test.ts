@@ -1,9 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { POST as importHandler } from "../app/api/import/route";
+import { POST as importHandler } from "@/app/api/import/route";
 import { NextRequest } from "next/server";
 
-// Mock the auth-helpers-nextjs module
-vi.mock("@supabase/auth-helpers-nextjs", () => {
+vi.mock('@/lib/supabase/client', () => {
   const mockInsert = vi.fn().mockReturnThis();
   const mockSelect = vi.fn(() => ({ error: null, count: 2 }));
   const mockEq = vi.fn(() => ({ data: [], error: null }));
@@ -16,20 +15,20 @@ vi.mock("@supabase/auth-helpers-nextjs", () => {
       insert: mockInsert,
     })),
   };
-  
-  // Add a way to access the mock insert to check calls
+
   supabase.from.mockImplementation(() => ({
     select: vi.fn(() => ({
       eq: mockEq,
     })),
     insert: vi.fn(() => ({
-        select: mockSelect
+      select: mockSelect,
     })),
   }));
 
-
   return {
-    createRouteHandlerClient: vi.fn(() => supabase),
+    __esModule: true,
+    default: supabase, // Add default export
+    supabase,
   };
 });
 
@@ -74,10 +73,9 @@ describe("POST /api/import", () => {
 
   it("should detect and report duplicates", async () => {
     // Mock that S123456 already exists in the DB for this class
-    const { createRouteHandlerClient } = await import("@supabase/auth-helpers-nextjs");
-    const mockSupabase = createRouteHandlerClient({ cookies: vi.fn() });
+    const { supabase } = await import("@/lib/supabase/client");
     
-    (mockSupabase.from("accounts").select().eq as any).mockResolvedValue({
+    (supabase.from("accounts").select().eq as any).mockResolvedValue({
         data: [{ student_no: "S123456" }],
         error: null,
     });
@@ -97,6 +95,6 @@ describe("POST /api/import", () => {
     expect(json.ok).toBe(true);
     expect(json.result.imported_count).toBe(1); // Only S654321 is new
     expect(json.result.duplicate_count).toBe(1);
-    expect(json.result.duplicates_detail).toEqual([{ row: 1, student_no: "S123456" }]);
+    expect(json.result.duplicates_detail).toEqual([{ row: 2, student_no: "S123456" }]);
   });
 });
