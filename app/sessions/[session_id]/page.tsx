@@ -52,6 +52,34 @@ export default function SessionPage() {
     }
   }, [router, session_id]);
 
+  // Warn and optionally end session when a managing user (teacher) closes the tab/window
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (canManage && sessionStatus !== 'closed') {
+        // Show browser leave confirmation
+        e.preventDefault();
+        // Some browsers require assignment to returnValue for the prompt to show
+        e.returnValue = '是否結束課程';
+
+        // Try to send a beacon to ensure the session is closed on the server
+        try {
+          const payload = JSON.stringify({ session_id, session_action: 'end_session' });
+          const url = '/api/hands-up/update-session';
+          if (navigator && (navigator as any).sendBeacon) {
+            const blob = new Blob([payload], { type: 'application/json' });
+            (navigator as any).sendBeacon(url, blob);
+          } else {
+            // Fallback: use fetch with keepalive (may not be supported in all browsers)
+            fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [canManage, sessionStatus, session_id]);
+
   const [initialQueue, setInitialQueue] = useState<any[]>([]);
   const [initialMembers, setInitialMembers] = useState<any[]>([]);
   
@@ -77,13 +105,23 @@ export default function SessionPage() {
     }
   };
 
-  // Custom hook for < 1sec sync (Supabase WebSocket)
-  const { queue, members, refresh } = useHandsUpSync({ 
+  // Custom hook for < 1sec sync (Supabase WebSocket + polling fallback)
+  const { queue, members, refresh, startPolling } = useHandsUpSync({ 
       sessionId: session_id, 
       initialQueue, 
       initialMembers,
       onDataUpdate: updateUIFromData 
   });
+
+  // 背景輪詢：每 2 秒自動刷新一次（確保跨瀏覽器同步，即使沒有操作）
+  useEffect(() => {
+    const backgroundPollingInterval = setInterval(() => {
+      console.log('[SessionPage] 🔄 背景輪詢 - 自動刷新...');
+      refresh();
+    }, 2000); // 每 2 秒
+
+    return () => clearInterval(backgroundPollingInterval);
+  }, [refresh]);
 
   useEffect(() => {
      // Check if current student is the leader of the reporting group
@@ -124,6 +162,7 @@ export default function SessionPage() {
         body: JSON.stringify({ session_id, qna_open: newState })
       });
       refresh();
+      startPolling(); // Enable aggressive polling for 3 seconds
     } catch(e) { }
   };
 
@@ -148,6 +187,7 @@ export default function SessionPage() {
         })
       });
       refresh();
+      startPolling(); // Enable aggressive polling for 3 seconds
     } catch(e) { }
   };
 
@@ -163,6 +203,7 @@ export default function SessionPage() {
       if (res.ok) {
         setPresentingStatus(action === 'start' ? 'P' : 'Y');
         refresh();
+        startPolling(); // Enable aggressive polling for 3 seconds
       }
     } catch (e) {
       console.error('Failed to update report status', e);
@@ -180,6 +221,7 @@ export default function SessionPage() {
            method: 'DELETE'
          });
          refresh();
+         startPolling(); // Enable aggressive polling for 3 seconds
        } catch(e) {
          console.error(e);
        }
@@ -192,6 +234,7 @@ export default function SessionPage() {
            body: JSON.stringify({ session_id, account_id: currentUserAccountId })
          });
          refresh();
+         startPolling(); // Enable aggressive polling for 3 seconds
        } catch(e) {
          console.error(e);
        }
@@ -206,6 +249,7 @@ export default function SessionPage() {
         body: JSON.stringify({ session_id })
       });
       refresh();
+      startPolling(); // Enable aggressive polling for 3 seconds
     } catch(e) {
       console.error(e);
     }
@@ -230,6 +274,7 @@ export default function SessionPage() {
         })
       });
       refresh();
+      startPolling(); // Enable aggressive polling for 3 seconds
     } catch(e) {
        console.error("Failed rating", e);
     } finally {
@@ -248,7 +293,8 @@ export default function SessionPage() {
       });
       if (res.ok) {
         alert("課堂已結束");
-        router.push('/');
+        startPolling(); // Enable aggressive polling to ensure sync before redirect
+        setTimeout(() => router.push('/'), 500);
       }
     } catch(e) {
       console.error("Failed to end session", e);
@@ -266,7 +312,26 @@ export default function SessionPage() {
   if (!currentUser) return null;
 
   return (
-    <AuthLayout user={currentUser} onLogout={() => { localStorage.removeItem('ch_user'); router.push('/'); }}>
+    <AuthLayout user={currentUser} onLogout={async () => {
+      try {
+        if (canManage && sessionStatus !== 'closed') {
+          const shouldEnd = confirm('是否結束課程');
+          if (shouldEnd) {
+            await fetch('/api/hands-up/update-session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id, session_action: 'end_session' })
+            });
+            alert('課堂已結束');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to end session on logout', e);
+      } finally {
+        localStorage.removeItem('ch_user');
+        router.push('/');
+      }
+    }}>
       <HandsUpInteractiveLayout 
         overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} />}
         queueView={
