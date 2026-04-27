@@ -80,7 +80,7 @@ Notes:
 
 | 欄位名稱 | 型別 | 說明 |
 |---|---|---|
-| id | BIGINT (PK) | 課堂 ID |
+| id | BIGINT (PK) | 課堂 ID /session_id |
 | class_id | BIGINT (FK) | 班級 ID |
 | title | VARCHAR(100) | 課堂名稱 |
 | max_point | INT | 本堂課最高可得分 |
