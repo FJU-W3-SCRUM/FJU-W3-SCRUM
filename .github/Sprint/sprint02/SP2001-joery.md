@@ -204,7 +204,27 @@ WHERE A.student_no = @student_no  -- ex: '414155259'
 6. [X] 放下所有舉手功能無效
 7. [X] 如果老師角色 進入報告模式,建立課堂時, 資料表sessions建立資料時,若有同一個班別 sessions.class_id一樣,且 ends_at is null時,建立一筆資料時,同時將該筆 ends_at 擇成當下時間
 
+---
 
-## 修改項目_v04251504
-- 1. [ ] 對於報告模式，操作即時顯示目前仍然有問題。
-- 2. [ ] 舉手回答給分
+### 修改項目_v04251504
+    - [X] 需將table:[hand_raises].status記錄為'A'
+    - [X] 同時也記錄於[table]記錄一筆資料(目前已有做完成)
+
+
+
+## Feature-SessonMaxPoint 設定每堂課最大評分數
+每堂課、報告可以評分的最大分數限制。
+- 老師、管理者登入進入『報告模式』第一頁時，增加一個『本堂課最高可得分』:使用 TextBox:number 預設給:15
+  - 對應到資料表[sessions].max_point
+  
+- [X] 已實作：在 `ReportModePanel.tsx` 新增 `本堂課最高可得分` 輸入，建立 session 時會儲存 `max_point`，且 `update-session` API 支援更新 `max_point`。
+
+
+## Issue-realtime-syncUI
+- 問題：對於報告模式，操作即時顯示目前仍然有問題
+ - 所有連線的client沒有即時同步顯示。
+ - 請幫我分析使用何種方式才能逹成我的要功能: ex web socket 
+- 當某同學舉手、放下時，其他人client開的瀏覽器應該也即時顯示，有某同學舉手、放下
+- 舉手者被點到時，該舉手者也要呈現已放下，所有有登入的client都要即時同步顯示
+- 當有權限者(老師、報告組組長)執行了:放下舉下、結束報告，也該回到initial狀態
+> 這個問題已修很多次，但都未來逹成該功能  

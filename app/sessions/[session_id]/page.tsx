@@ -52,6 +52,34 @@ export default function SessionPage() {
     }
   }, [router, session_id]);
 
+  // Warn and optionally end session when a managing user (teacher) closes the tab/window
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (canManage && sessionStatus !== 'closed') {
+        // Show browser leave confirmation
+        e.preventDefault();
+        // Some browsers require assignment to returnValue for the prompt to show
+        e.returnValue = '是否結束課程';
+
+        // Try to send a beacon to ensure the session is closed on the server
+        try {
+          const payload = JSON.stringify({ session_id, session_action: 'end_session' });
+          const url = '/api/hands-up/update-session';
+          if (navigator && (navigator as any).sendBeacon) {
+            const blob = new Blob([payload], { type: 'application/json' });
+            (navigator as any).sendBeacon(url, blob);
+          } else {
+            // Fallback: use fetch with keepalive (may not be supported in all browsers)
+            fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+          }
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [canManage, sessionStatus, session_id]);
+
   const [initialQueue, setInitialQueue] = useState<any[]>([]);
   const [initialMembers, setInitialMembers] = useState<any[]>([]);
   
@@ -266,7 +294,26 @@ export default function SessionPage() {
   if (!currentUser) return null;
 
   return (
-    <AuthLayout user={currentUser} onLogout={() => { localStorage.removeItem('ch_user'); router.push('/'); }}>
+    <AuthLayout user={currentUser} onLogout={async () => {
+      try {
+        if (canManage && sessionStatus !== 'closed') {
+          const shouldEnd = confirm('是否結束課程');
+          if (shouldEnd) {
+            await fetch('/api/hands-up/update-session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id, session_action: 'end_session' })
+            });
+            alert('課堂已結束');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to end session on logout', e);
+      } finally {
+        localStorage.removeItem('ch_user');
+        router.push('/');
+      }
+    }}>
       <HandsUpInteractiveLayout 
         overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} />}
         queueView={
