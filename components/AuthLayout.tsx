@@ -8,13 +8,14 @@ const ImportCsvForm = dynamic(() => import("./ImportCsvForm"), { ssr: false });
 const GroupsPanel = dynamic(() => import("./GroupsPanel"), { ssr: false });
 const AccountsPanel = dynamic(() => import("./AccountsPanel"), { ssr: false });
 const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
+const ReportModePanel = dynamic(() => import("./ReportModePanel"), { ssr: false });
 
 export default function AuthLayout({
   user,
   children,
   onLogout,
 }: {
-  user: { student_no: string; name?: string; role?: string } | null;
+  user: { id?: string; student_no: string; name?: string; role?: string } | null;
   children: React.ReactNode;
   onLogout: () => void;
 }) {
@@ -118,10 +119,7 @@ export default function AuthLayout({
           </div>
         )}
         {active === "report_mode" && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow-md border border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">報告模式</h2>
-            <p className="text-gray-600 dark:text-gray-400">報告模式設定（待實作）</p>
-          </div>
+          <ReportModePanel user={user as any} />
         )}
       </main>
     </div>

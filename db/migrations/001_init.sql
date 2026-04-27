@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS hand_raises (
   session_id BIGINT REFERENCES sessions(id) ON DELETE CASCADE,
   account_id BIGINT REFERENCES accounts(id) ON DELETE CASCADE,
   raised_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  is_selected BOOLEAN DEFAULT FALSE
+  status VARCHAR(16) DEFAULT 'pending' -- 'pending', 'cleared', 'answered'
 );
 
 CREATE TABLE IF NOT EXISTS answers (
