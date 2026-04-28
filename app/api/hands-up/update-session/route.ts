@@ -70,12 +70,6 @@ export async function POST(request: Request) {
         }
     }
 
-    // 5. max_point: update session max point
-    if (body.max_point !== undefined && session_id) {
-        const mp = Number(body.max_point) || 0;
-        await supabase.from('sessions').update({ max_point: mp }).eq('id', session_id);
-    }
-
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

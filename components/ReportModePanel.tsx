@@ -25,7 +25,6 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
   
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const [message, setMessage] = useState("");
-  const [maxPoint, setMaxPoint] = useState<number>(15);
 
   // ============================
   // Student Flow
@@ -134,7 +133,6 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
              title: `課堂互動 - ${new Date().toLocaleDateString()}`,
              status: 'R',
              qna_open: false,
-             max_point: maxPoint,
              starts_at: new Date().toISOString()
          }])
          .select()
@@ -220,16 +218,6 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
       <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">設定報告模式</h2>
       
       <div className="space-y-6">
-        <div>
-           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">本堂課最高可得分</label>
-           <input
-             type="number"
-             min={1}
-             className="w-32 p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-             value={maxPoint}
-             onChange={(e) => setMaxPoint(Number(e.target.value || 15))}
-           />
-        </div>
         <div>
            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">上課班別</label>
            <select 
