@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/lib/supabase/client';
+import supabase from '@/lib/supabase/client';
 
 export async function GET(request: Request) {
   try {
@@ -63,11 +63,11 @@ export async function GET(request: Request) {
 
     if (accountsError) throw new Error(`accountsError: ${accountsError.message}`);
 
-    // Fetch seating info if available
+    // Fetch seating info for the current session (class-mode seat choices)
     const { data: seatData } = await supabase
-      .from('class_members')
+      .from('session_seats')
       .select('account_id, seat_row, seat_col')
-      .eq('class_id', class_id);
+      .eq('session_id', session_id);
 
     const seatMap: Record<string, {row: number, col: number}> = {};
     seatData?.forEach(s => {
@@ -115,8 +115,8 @@ export async function GET(request: Request) {
         id: acc.id,
         name: acc.name,
         student_no: acc.student_no,
-        seat_row: seat?.row || null,
-        seat_col: seat?.col || null,
+        seat_row: seat?.row ?? null,
+        seat_col: seat?.col ?? null,
         group: null,
         is_leader: false,
         hand_raised: false,
@@ -141,10 +141,11 @@ export async function GET(request: Request) {
       }
     });
 
-    pendingHands?.forEach((h: any) => {
+    pendingHands?.forEach((h: any, index: number) => {
       if (memberMap[h.account_id]) {
          memberMap[h.account_id].hand_raised = true;
          memberMap[h.account_id].hand_raise_id = h.id;
+         memberMap[h.account_id].hand_raise_order = index + 1;
          memberMap[h.account_id].raised_at = h.raised_at;
       }
     });

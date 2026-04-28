@@ -52,6 +52,15 @@ export function useHandsUpSync({ sessionId, initialQueue = [], initialMembers = 
           refresh();
         }
       )
+      // 1b. Listen to seat selections so the teacher view updates immediately
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'session_seats', filter: `session_id=eq.${sessionId}` },
+        (payload) => {
+          console.log('[Supabase] Session seats change detected', payload.eventType);
+          refresh();
+        }
+      )
       // 2. Listen to Session metadata (Q&A toggle, overall session status)
       .on(
         'postgres_changes',

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/lib/supabase/client';
+import supabase from '@/lib/supabase/client';
 
 export async function POST(request: Request) {
   try {
@@ -67,6 +67,11 @@ export async function POST(request: Request) {
             await supabase.from('sessions')
                 .update({ ends_at: now, status: 'closed' })
                 .eq('id', session_id);
+
+            // Clear all seat selections for this session so the next class starts with an empty seating chart.
+            await supabase.from('session_seats')
+                .delete()
+                .eq('session_id', session_id);
         }
     }
 

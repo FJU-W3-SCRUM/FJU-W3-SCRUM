@@ -6,18 +6,23 @@ import AuthLayout from "../components/AuthLayout";
 export default function Home() {
   const [user, setUser] = useState<Account | null>(null);
 
-  // Disable auto-login: ensure any persisted user is cleared on page load
+  // On initial load, try to load user from localStorage
   useEffect(() => {
-    try {
-      localStorage.removeItem("ch_user");
-    } catch (e) {
-      // ignore
+    const storedUser = localStorage.getItem("ch_user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        // If parsing fails, remove the invalid item
+        localStorage.removeItem("ch_user");
+      }
     }
   }, []);
 
   function onLogin(a: Account) {
-    setUser(a);
     localStorage.setItem("ch_user", JSON.stringify(a));
+    // setUser(a); // This will be handled by the page reload and useEffect
+    window.location.reload(); // Reload to apply AuthLayout and other user-dependent states
   }
 
   function onLogout() {

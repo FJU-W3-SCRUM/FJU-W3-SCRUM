@@ -95,6 +95,24 @@ Notes:
 
 ---
 
+### session_seats
+
+| 欄位名稱 | 型別 | 說明 |
+|---|---|---|
+| id | BIGINT (PK) | 唯一識別碼 |
+| session_id | BIGINT (FK) | 課堂 ID (對應 sessions.id) |
+| account_id | BIGINT (FK) | 學生 ID (對應 accounts.id) |
+| seat_row | INT | 座位的列號 |
+| seat_col | INT | 座位的行號 |
+| created_at | TIMESTAMP WITH TIME ZONE | 選位時間 |
+
+**Notes:**
+- 此資料表用於實現「上課模式」中的動態選位功能。
+- `(session_id, account_id)` 應建立唯一約束，確保學生在一堂課中只能選一個位置。
+- `(session_id, seat_row, seat_col)` 應建立唯一約束，確保一個座位在一堂課中只能被一人選擇。
+
+---
+
 ## 4. 分組管理
 
 ### groups
@@ -245,5 +263,3 @@ Rationale:
 - students → hand_raises / answers → ratings → points_transactions
 - groups → group_quotas → points_transactions
 - import_jobs、operation_logs、seat_history 作為輔助稽核 / 作業表
-
-``
