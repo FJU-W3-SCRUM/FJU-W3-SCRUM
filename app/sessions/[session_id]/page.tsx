@@ -333,7 +333,7 @@ export default function SessionPage() {
       }
     }}>
       <HandsUpInteractiveLayout 
-        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} />}
+        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />}
         queueView={
           <HandsUpQueue 
             queue={queue} 
