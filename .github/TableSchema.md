@@ -140,7 +140,8 @@ Notes:
 |---|---|---|
 | id | BIGINT (PK) | 舉手紀錄 ID |
 | session_id | BIGINT (FK) | 課堂 ID |
-| student_no | VARCHAR(50) (FK) | 學號 / 登入帳號 |
+| account_id | int8(PK) | 學生ID |
+| *student_no | VARCHAR(50) (FK) | 學號 / 登入帳號 <沒有此欄位,account_id取代> |
 | raised_at | DATETIME | 舉手時間 |
 | status | VARCHAR(16) | 是否被點名 ,DEFAULT 'pending' -- 'pending', 'cleared', 'answered'|
 
@@ -151,8 +152,8 @@ Notes:
 
 ---
 
-### answers
-
+### answers 
+- 回答記錄
 | 欄位名稱 | 型別 | 說明 |
 |---|---|---|
 | id | BIGINT (PK) | 回答紀錄 ID |

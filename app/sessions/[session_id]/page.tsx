@@ -138,6 +138,14 @@ export default function SessionPage() {
     }
 
     try {
+      // 1. Clear all existing hand raises (放下所有舉手)
+      await fetch('/api/hands-up/clear-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id })
+      });
+
+      // 2. Update session with new group and close Q&A
       await fetch('/api/hands-up/update-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -268,7 +276,7 @@ export default function SessionPage() {
   return (
     <AuthLayout user={currentUser} onLogout={() => { localStorage.removeItem('ch_user'); router.push('/'); }}>
       <HandsUpInteractiveLayout 
-        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} />}
+        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />}
         queueView={
           <HandsUpQueue 
             queue={queue} 

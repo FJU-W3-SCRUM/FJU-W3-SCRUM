@@ -61,19 +61,52 @@ export default function Home() {
 
   return (
     <AuthLayout user={user} onLogout={onLogout}>
-      <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-lg border border-gray-200 dark:border-gray-700">
-        <h2 className="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">歡迎，{user.name ?? user.student_no}</h2>
-        <div className="flex gap-6 mt-4 text-sm flex-wrap">
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">學號：</span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">{user.student_no}</span>
-          </div>
-          <div>
-            <span className="text-gray-500 dark:text-gray-400">身分：</span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">{roleText}</span>
+      <div className="space-y-6">
+        {/* Welcome Card */}
+        <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-lg border border-gray-200 dark:border-gray-700">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            歡迎，{user.name ?? user.student_no}
+          </h2>
+          <div className="flex gap-6 mt-3 text-sm text-gray-600 dark:text-gray-400">
+            <div>
+              <span className="text-gray-500 dark:text-gray-400">學號：</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100 ml-1">{user.student_no}</span>
+            </div>
+            <div>
+              <span className="text-gray-500 dark:text-gray-400">身分：</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100 ml-1">{roleText}</span>
+            </div>
           </div>
         </div>
-        <p className="mt-4 text-gray-600 dark:text-gray-400">這裡是主畫面區塊，顯示課堂與操作內容。</p>
+
+        {/* Info Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Task01 Info */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-6">
+            <h3 className="text-lg font-bold text-blue-900 dark:text-blue-200 mb-3">
+              📊 報告模式
+            </h3>
+            <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-2">
+              <li>✅ 選擇班別和報告組開始課堂</li>
+              <li>✅ 自動加載和顯示分組成員分數</li>
+              <li>✅ 實時更新分數統計</li>
+              <li>✅ 格式: (被點/舉手; 分數)</li>
+            </ul>
+          </div>
+
+          {/* Task02 Info */}
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-6">
+            <h3 className="text-lg font-bold text-green-900 dark:text-green-200 mb-3">
+              📈 分數查詢
+            </h3>
+            <ul className="text-sm text-green-800 dark:text-green-300 space-y-2">
+              <li>✅ 老師: 查詢全校所有班級</li>
+              <li>✅ 學生: 限查同班學生</li>
+              <li>✅ 班別篩選和關鍵字搜尋</li>
+              <li>✅ 結果按課堂自動分組</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </AuthLayout>
   );

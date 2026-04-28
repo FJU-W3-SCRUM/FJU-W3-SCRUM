@@ -1,6 +1,14 @@
 # **大學課堂互動與給分系統：User Story & Acceptance Criteria**
-
 本文件將 User Story 原始需求與驗收準則 (Given-When-Then) 結合
+- User Story
+  - As a... / 身為...
+  - What / 可以或想要做什麼
+  - Why / 因此我可以...
+
+- 驗收準則
+  - Given
+  - When
+  - Then
 
 ## **Epic 1: 課程管理與身分基礎設施 (Course & Identity Infrastructure)**
 

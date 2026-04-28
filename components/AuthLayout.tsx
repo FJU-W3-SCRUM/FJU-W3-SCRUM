@@ -9,6 +9,7 @@ const GroupsPanel = dynamic(() => import("./GroupsPanel"), { ssr: false });
 const AccountsPanel = dynamic(() => import("./AccountsPanel"), { ssr: false });
 const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
 const ReportModePanel = dynamic(() => import("./ReportModePanel"), { ssr: false });
+const ScoreQueryPanel = dynamic(() => import("./ScoreQueryPanel"), { ssr: false });
 
 export default function AuthLayout({
   user,
@@ -27,11 +28,13 @@ export default function AuthLayout({
       { key: "accounts", label: "帳號管理" },
       { key: "class_mode", label: "上課模式" },
       { key: "report_mode", label: "報告模式" },
+      { key: "score_query", label: "分數查詢" },
     ];
 
     const studentMenu = [
       { key: "class_mode", label: "上課模式" },
       { key: "report_mode", label: "報告模式" },
+      { key: "score_query", label: "分數查詢" },
     ];
 
     // admin 和 teacher 顯示完整菜單，其他角色（包括 student）顯示學生菜單
@@ -120,6 +123,11 @@ export default function AuthLayout({
         )}
         {active === "report_mode" && (
           <ReportModePanel user={user as any} />
+        )}
+        {active === "score_query" && (
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md border border-gray-200 dark:border-gray-700">
+            <ScoreQueryPanel user={user as any} />
+          </div>
         )}
       </main>
     </div>

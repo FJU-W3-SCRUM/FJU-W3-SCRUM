@@ -1,5 +1,6 @@
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import type { StudentScoreData } from '@/lib/services/student-score-service';
 
 export interface ClassMember {
   id: string;
@@ -17,9 +18,51 @@ interface OverviewProps {
   members: ClassMember[];
   presentingGroupId?: string | null;
   onRate?: (accountId: string, handRaiseId: string) => void;
+  sessionId?: string;
 }
 
-export default function ClassOverview({ members, presentingGroupId, onRate }: OverviewProps) {
+export default function ClassOverview({ members, presentingGroupId, onRate, sessionId }: OverviewProps) {
+  const [scores, setScores] = useState<Map<string, StudentScoreData>>(new Map());
+  const [loadingScores, setLoadingScores] = useState(false);
+
+  // Load scores for all members when component mounts or sessionId changes
+  useEffect(() => {
+    if (!sessionId || members.length === 0) {
+      setScores(new Map());
+      return;
+    }
+
+    const loadScores = async () => {
+      try {
+        setLoadingScores(true);
+        const newScores = new Map<string, StudentScoreData>();
+
+        // Fetch scores for each member
+        for (const member of members) {
+          try {
+            const response = await fetch(
+              `/api/scores/student-scores?sessionId=${sessionId}&accountId=${member.id}`
+            );
+            const data = await response.json();
+
+            if (data.ok && data.data) {
+              newScores.set(member.id, data.data);
+            }
+          } catch (err) {
+            console.error(`Failed to load score for ${member.id}:`, err);
+          }
+        }
+
+        setScores(newScores);
+      } catch (err: any) {
+        console.error("Error loading scores:", err);
+      } finally {
+        setLoadingScores(false);
+      }
+    };
+
+    loadScores();
+  }, [sessionId, members]);
   // Grouping members by `group.id` and sorting
   const groupedMembers = useMemo(() => {
     const grouped: Record<string, { id: string, name: string, members: ClassMember[] }> = {};
@@ -88,31 +131,43 @@ export default function ClassOverview({ members, presentingGroupId, onRate }: Ov
                 </div>
                 
                 <ul className="divide-y divide-gray-200/50 dark:divide-gray-700/50 p-2">
-                  {g.members.map(member => (
-                    <li key={member.id} className="px-2 py-1.5 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{member.name}</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-300">
-                          ({member.student_no}) {member.is_leader && <span className="font-bold text-amber-500">&lt;組長&gt;</span>}
-                        </span>
-                      </div>
-                      
-                      {/* Indicator showing the Hand Raise */}
-                      {member.hand_raised && (
-                         onRate ? (
-                           <button 
-                             onClick={() => member.hand_raise_id && onRate(member.id, member.hand_raise_id)}
-                             className="animate-bounce hover:scale-125 transition-transform" 
-                             title="點名評分"
-                           >
-                             🙋‍♂️
-                           </button>
-                         ) : (
-                           <span className="animate-bounce" title="舉手中">🙋‍♂️</span>
-                         )
-                      )}
-                    </li>
-                  ))}
+                  {g.members.map(member => {
+                    const score = scores.get(member.id);
+                    const scoreDisplay = score 
+                      ? `(${score.answerCount}/${score.raiseCount}; ${score.totalScore})` 
+                      : '';
+                    
+                    return (
+                      <li key={member.id} className="px-2 py-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{member.name}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-300">
+                            ({member.student_no}) {member.is_leader && <span className="font-bold text-amber-500">&lt;組長&gt;</span>}
+                          </span>
+                          {scoreDisplay && (
+                            <span className="text-xs font-mono bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                              {scoreDisplay}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Indicator showing the Hand Raise */}
+                        {member.hand_raised && (
+                           onRate ? (
+                             <button 
+                               onClick={() => member.hand_raise_id && onRate(member.id, member.hand_raise_id)}
+                               className="animate-bounce hover:scale-125 transition-transform" 
+                               title="點名評分"
+                             >
+                               🙋‍♂️
+                             </button>
+                           ) : (
+                             <span className="animate-bounce" title="舉手中">🙋‍♂️</span>
+                           )
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
              </div>
           );
