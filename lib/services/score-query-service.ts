@@ -218,10 +218,10 @@ export async function queryScores(
     // 處理評分記錄
     (ratingsData || []).forEach((rating: any) => {
       const handRaise = rating.hand_raises;
-      const hand = (handsData || []).find((h: any) => h.id === handRaise.id);
-      if (hand) {
+      const foundHand = (handsData || []).find((h: any) => h.id === handRaise.id);
+      if (foundHand) {
         const session = (sessionsData || []).find((s: any) => s.id === handRaise.session_id);
-        const accountArray = Array.isArray(hand.accounts) ? hand.accounts : [hand.accounts];
+        const accountArray = Array.isArray(foundHand.accounts) ? foundHand.accounts : [foundHand.accounts];
         const account = accountArray[0];
         
         if (!account) return;

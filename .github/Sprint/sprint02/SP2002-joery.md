@@ -23,6 +23,17 @@
 
 
 ## 需求-SP2002
+
+### 參考資料表 
+> 詳細資料表欄位參考 [TableSchema資料表](../../TableSchema.md)
+
+- [A]:sessions - 課堂（Session）
+- [B]:hand_raises - Q&A 舉手與回答紀錄
+- [C]:answers - 回答記錄,用於統計：舉手次數、是否曾被點名
+- [D]:ratings - 回答評分（星等制)
+
+---
+  
 ### **User Story:** 
 身為 教師 (Admin) 我想要 自動記錄每位學生在每堂課的發言次數 因此我可以 依即時數據作為評分參考，避免資源過度集中。
 
@@ -44,6 +55,56 @@
 | `{answer_cnt}` | 被點發表次數 | [hand_raises].account_id; WHERE status='A' | 同課堂,計算次數 |
 | `{raise_count}` | 舉手次數 | [hand_raises].account_id | 同課堂,計算次數 |
 | `{score}` | 評點分數 | [ratings].star | 加總分數;被評顆星分數 |
+
+#### 參考SQL
+
+##### SQL- 被點發表次數 `{answer_cnt}`
+
+```SQL
+-- 計算被點發表次數/回答次數
+SELECT session_id, account_id, COUNT(account_id) AS answer_cnt
+FROM hand_raises
+WHERE 1 = 1
+--AND raised_at >=  CAST('2026-04-28' AS timestamp) -- 不用此條件,該為測試查資料使用
+AND status = 'A'
+AND session_id = 85  -- {session_id}
+GROUP BY session_id, account_id
+ORDER BY session_id DESC, account_id ASC
+;
+```
+
+##### SQL-舉手次數 `{raise_count}`
+
+```SQL
+-- 計算舉手次數
+SELECT session_id, account_id, COUNT(account_id) AS raise_count
+FROM hand_raises
+WHERE 1 = 1
+--AND raised_at >=  CAST('2026-04-28' AS timestamp) -- 不用此條件,該為測試查資料使用
+AND session_id = 85  -- {session_id}
+GROUP BY session_id, account_id
+ORDER BY session_id DESC, account_id ASC
+;
+```
+
+##### SQL-評點分數 `{score}`
+
+```SQL
+-- 計算評點分數
+SELECT A.session_id, A.account_id, SUM(B.star) AS score
+FROM answers A
+INNER JOIN ratings B
+ON A.session_id = B.session_id
+AND A.id = B.answer_id
+WHERE 1 = 1
+--AND raised_at >=  CAST('2026-04-28' AS timestamp) -- 不用此條件,該為測試查資料使用
+AND A.session_id = 85  -- {session_id}
+GROUP BY A.session_id, A.account_id
+ORDER BY A.session_id DESC, A.account_id ASC
+;
+```
+
+---
 
 #### Task02 另新增一功能查詢所有人分數統計別
 在左邊功能表中，新增一功能『分數查詢』，所有角色都可以使用，但老師、學生有不同查詢權限

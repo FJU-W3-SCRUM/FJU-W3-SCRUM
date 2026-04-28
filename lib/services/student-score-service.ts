@@ -48,7 +48,7 @@ export async function getStudentScoresForSession(
   sessionId: string
 ): Promise<StudentScoreData[]> {
   try {
-    // Step 1: 獲取該課堂內所有的舉手記錄及其相關資訊
+    // Step 1: 獲取該課堂內所有的舉手記錄 (用於計算舉手/被點名次數)
     const { data: handsData, error: handsError } = await supabase
       .from('hand_raises')
       .select(
@@ -69,24 +69,40 @@ export async function getStudentScoresForSession(
       throw new Error(`Failed to fetch hand raises: ${handsError.message}`);
     }
 
-    // Step 2: 獲取該課堂內所有的評分記錄
-    const { data: ratingsData, error: ratingsError } = await supabase
-      .from('ratings')
+    // Step 2: 獲取該課堂的所有回答及其評分 (用於計算分數)
+    // 使用 answers -> ratings 的關聯，通過 account_id 匹配
+    const { data: answersWithRatings, error: answersError } = await supabase
+      .from('answers')
       .select(
         `
-        hand_raise_id,
-        star,
-        hand_raises(
-          account_id
+        id,
+        session_id,
+        account_id,
+        ratings(
+          id,
+          star
         )
       `
       )
-      .in('hand_raises.session_id', [sessionId]);
+      .eq('session_id', sessionId);
 
-    if (ratingsError) {
-      console.error('Error fetching ratings:', ratingsError);
-      throw new Error(`Failed to fetch ratings: ${ratingsError.message}`);
+    if (answersError) {
+      console.error('Error fetching answers with ratings:', answersError);
+      throw new Error(`Failed to fetch answers with ratings: ${answersError.message}`);
     }
+
+    // 建立 account_id 到評分分數的對應表
+    const scoresByAccountId = new Map<string, number>();
+    (answersWithRatings || []).forEach((answer: any) => {
+      const accountId = answer.account_id;
+      const ratings = answer.ratings || [];
+      const answerScore = ratings.reduce((sum: number, rating: any) => sum + (rating.star || 0), 0);
+      
+      if (answerScore > 0) {
+        const currentScore = scoresByAccountId.get(accountId) || 0;
+        scoresByAccountId.set(accountId, currentScore + answerScore);
+      }
+    });
 
     // Step 3: 處理數據 - 按學生分組並計算統計
     const studentMap = new Map<string, StudentScoreData>();
@@ -95,11 +111,12 @@ export async function getStudentScoresForSession(
     (handsData || []).forEach((hand: any) => {
       const accountId = hand.account_id;
       const account = hand.accounts;
+      const studentNo = account?.student_no || '';
 
       if (!studentMap.has(accountId)) {
         studentMap.set(accountId, {
           account_id: accountId,
-          student_no: account?.student_no || '',
+          student_no: studentNo,
           name: account?.name || '',
           answerCount: 0,
           raiseCount: 0,
@@ -118,15 +135,10 @@ export async function getStudentScoresForSession(
       }
     });
 
-    // 處理評分記錄 - 累計 star 分數
-    (ratingsData || []).forEach((rating: any) => {
-      const handRaise = rating.hand_raises;
-      if (handRaise) {
-        const accountId = handRaise.account_id;
-        if (studentMap.has(accountId)) {
-          const student = studentMap.get(accountId)!;
-          student.totalScore += rating.star || 0;
-        }
+    // 添加評分分數 (從 answers->ratings 關聯中獲取)
+    studentMap.forEach((student) => {
+      if (scoresByAccountId.has(student.account_id)) {
+        student.totalScore = scoresByAccountId.get(student.account_id) || 0;
       }
     });
 
@@ -185,14 +197,24 @@ export async function getStudentScoreForSession(
       throw new Error(`Failed to fetch hand raises: ${handsError.message}`);
     }
 
-    // Step 3: 獲取該學生在該課堂的評分記錄
-    const { data: ratingsData, error: ratingsError } = await supabase
-      .from('ratings')
-      .select('star')
-      .in('hand_raise_id', (handsData || []).map((h: any) => h.id));
+    // Step 3: 獲取該學生在該課堂的回答及評分記錄 (使用 answers->ratings，通過 account_id)
+    const { data: answersWithRatings, error: answersError } = await supabase
+      .from('answers')
+      .select(
+        `
+        id,
+        session_id,
+        ratings(
+          id,
+          star
+        )
+      `
+      )
+      .eq('session_id', sessionId)
+      .eq('account_id', accountId);
 
-    if (ratingsError) {
-      throw new Error(`Failed to fetch ratings: ${ratingsError.message}`);
+    if (answersError) {
+      throw new Error(`Failed to fetch answers with ratings: ${answersError.message}`);
     }
 
     // Step 4: 計算統計
@@ -200,14 +222,19 @@ export async function getStudentScoreForSession(
     let raiseCount = (handsData || []).length;
     let totalScore = 0;
 
+    // 計算被點名次數
     (handsData || []).forEach((hand: any) => {
       if (hand.status === 'A') {
         answerCount += 1;
       }
     });
 
-    (ratingsData || []).forEach((rating: any) => {
-      totalScore += rating.star || 0;
+    // 計算分數 (從 answers->ratings 中獲取)
+    (answersWithRatings || []).forEach((answer: any) => {
+      const ratings = answer.ratings || [];
+      ratings.forEach((rating: any) => {
+        totalScore += rating.star || 0;
+      });
     });
 
     return {
