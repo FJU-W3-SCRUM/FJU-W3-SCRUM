@@ -80,7 +80,7 @@ Notes:
 
 | 欄位名稱 | 型別 | 說明 |
 |---|---|---|
-| id | BIGINT (PK) | 課堂 ID |
+| id | BIGINT (PK) | 課堂 ID /session_id |
 | class_id | BIGINT (FK) | 班級 ID |
 | title | VARCHAR(100) | 課堂名稱 |
 | max_point | INT | 本堂課最高可得分 |
@@ -126,6 +126,9 @@ Notes:
 | id | BIGINT (PK) | ID |
 | session_id | BIGINT (FK) | 課堂 ID |
 | group_id | BIGINT (FK) | 本堂課報告組 |
+| status | VARCHAR(1) | 'N': 未報告, 'P': 報告中, 'Y': 已報告 (Default: 'N') |
+| started_at | DATETIME | 報告開始時間 |
+| ended_at | DATETIME | 報告結束時間 |
 
 ---
 
@@ -137,9 +140,10 @@ Notes:
 |---|---|---|
 | id | BIGINT (PK) | 舉手紀錄 ID |
 | session_id | BIGINT (FK) | 課堂 ID |
-| student_no | VARCHAR(50) (FK) | 學號 / 登入帳號 |
+| account_id | int8(PK) | 學生ID |
+| *student_no | VARCHAR(50) (FK) | 學號 / 登入帳號 <沒有此欄位,account_id取代> |
 | raised_at | DATETIME | 舉手時間 |
-| is_selected | BOOLEAN | 是否被點名 |
+| status | VARCHAR(16) | 是否被點名 ,DEFAULT ''; 'R':Raise hand舉手; 'P':Put down,放下; 'A':Answer已被點回答; 'C':Clear全部清除|
 
 ✅ 用於統計：
 
@@ -148,17 +152,20 @@ Notes:
 
 ---
 
-### answers
-
+### answers 
+- 回答記錄
 | 欄位名稱 | 型別 | 說明 |
 |---|---|---|
 | id | BIGINT (PK) | 回答紀錄 ID |
 | session_id | BIGINT (FK) | 課堂 ID |
-| student_no | VARCHAR(50) (FK) | 回答學號 / 登入帳號 |
+| account_id | BIGINT (FK) | 回答學生 ID |
 | answered_at | DATETIME | 回答時間 |
+| content | TEXT | 回答內容或來源描述 |
 
 Notes:
-- 若需要記錄回答內容或回放，可以增加 `content` 或 `recording_url` 欄位。
+- 若需要記錄回答內容或回放，可以增加 `recording_url` 欄位。
+- 該表用於記錄學生被點名回答時建立的回答記錄。
+- 與 ratings 表配合使用：ratings.answer_id 指向此表的 id。
 
 ✅ 用於統計「實際回答次數」
 

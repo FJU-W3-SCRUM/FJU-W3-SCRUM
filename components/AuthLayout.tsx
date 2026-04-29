@@ -8,36 +8,60 @@ const ImportCsvForm = dynamic(() => import("./ImportCsvForm"), { ssr: false });
 const GroupsPanel = dynamic(() => import("./GroupsPanel"), { ssr: false });
 const AccountsPanel = dynamic(() => import("./AccountsPanel"), { ssr: false });
 const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
+const ReportModePanel = dynamic(() => import("./ReportModePanel"), { ssr: false });
+const ScoreQueryPanel = dynamic(() => import("./ScoreQueryPanel"), { ssr: false });
 
 export default function AuthLayout({
   user,
   children,
   onLogout,
 }: {
-  user: { student_no: string; name?: string; role?: string } | null;
+  user: { id?: string; student_no: string; name?: string; role?: string } | null;
   children: React.ReactNode;
   onLogout: () => void;
 }) {
-  const menu = [
-    { key: "classes", label: "班別設定" },
-    { key: "groups", label: "分組設定" },
-    { key: "accounts", label: "帳號管理" },
-    { key: "class_mode", label: "上課模式" },
-    { key: "report_mode", label: "報告模式" },
-  ];
+  // Get menu items based on user role
+  const getMenuItems = () => {
+    const adminTeacherMenu = [
+      { key: "classes", label: "班別設定" },
+      { key: "groups", label: "分組設定" },
+      { key: "accounts", label: "帳號管理" },
+      { key: "class_mode", label: "上課模式" },
+      { key: "report_mode", label: "報告模式" },
+      { key: "score_query", label: "分數查詢" },
+    ];
+
+    const studentMenu = [
+      { key: "class_mode", label: "上課模式" },
+      { key: "report_mode", label: "報告模式" },
+      { key: "score_query", label: "分數查詢" },
+    ];
+
+    // admin 和 teacher 顯示完整菜單，其他角色（包括 student）顯示學生菜單
+    const role = user?.role?.toLowerCase() || "student";
+    if (role === "admin" || role === "teacher") {
+      return adminTeacherMenu;
+    }
+    return studentMenu;
+  };
+
+  const menu = getMenuItems();
 
   const [open, setOpen] = useState(false);
 
   const [active, setActive] = useState<string>("home");
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col md:flex-row bg-white dark:bg-gray-900">
       {/* Top bar for small screens */}
-      <header className="w-full bg-[#003366] text-white md:hidden flex items-center justify-between px-4 py-3">
+      <header className="w-full bg-[#003366] dark:bg-blue-900 text-white md:hidden flex items-center justify-between px-4 py-3 shadow-md">
         <div className="font-bold">學校互動評分系統</div>
         <div className="flex items-center gap-3">
           <div className="text-sm">{user?.name ?? user?.student_no}</div>
-          <button onClick={() => setOpen((v) => !v)} className="px-2 py-1 bg-[#D4AF37] text-[#003366] rounded">
+          <button 
+            onClick={() => setOpen((v) => !v)} 
+            className="px-2 py-1 bg-[#D4AF37] dark:bg-amber-500 text-[#003366] dark:text-blue-900 rounded hover:opacity-90 transition-opacity"
+          >
             菜單
           </button>
         </div>
@@ -48,15 +72,28 @@ export default function AuthLayout({
         <div className="md:hidden fixed inset-0 bg-black/40 z-40" onClick={() => setOpen(false)} />
       )}
 
-      <aside className={`bg-white md:w-64 p-4 z-50 ${open ? "fixed inset-y-0 left-0 w-64" : "hidden md:block"}`}>
-        <div className="mb-6">
-          <div className="font-medium text-[#003366]">{user?.name ?? user?.student_no}</div>
-          <div className="text-sm text-gray-500">{user?.role ?? "student"}</div>
+      <aside className={`bg-white dark:bg-gray-800 md:w-64 p-4 z-50 border-r border-gray-200 dark:border-gray-700 ${
+        open ? "fixed inset-y-0 left-0 w-64" : "hidden md:block"
+      }`}>
+        <div className="mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
+          <div className="font-medium text-[#003366] dark:text-blue-400 text-sm">{user?.name ?? user?.student_no}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">學號: {user?.student_no}</div>
+          <div className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 inline-block px-2 py-1 rounded mt-2">
+            {user?.role === "admin" ? "管理員" : user?.role === "teacher" ? "教師" : "學生"}
+          </div>
         </div>
 
         <nav className="space-y-2">
           {menu.map((m) => (
-            <div key={m.key} onClick={() => { setActive(m.key); setOpen(false); }} className={`py-2 text-sm ${active===m.key? 'font-semibold text-black': 'text-[#003366] hover:text-black'} cursor-pointer`}>
+            <div 
+              key={m.key} 
+              onClick={() => { setActive(m.key); setOpen(false); }} 
+              className={`py-2 px-3 text-sm rounded cursor-pointer transition-colors ${
+                active === m.key 
+                  ? 'font-semibold text-white bg-[#003366] dark:bg-blue-700' 
+                  : 'text-[#003366] dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
               {m.label}
             </div>
           ))}
@@ -65,21 +102,33 @@ export default function AuthLayout({
         <div className="mt-6">
           <button
             onClick={onLogout}
-            className="text-sm text-white px-3 py-1 rounded bg-red-600"
+            className="text-sm text-white px-3 py-2 rounded bg-red-600 dark:bg-red-700 hover:bg-red-700 dark:hover:bg-red-600 w-full transition-colors"
           >
             登出
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 p-6 bg-gradient-to-b from-white to-zinc-50">
+      <main className="flex-1 p-6 bg-gray-50 dark:bg-gray-900 transition-colors">
         {active === "home" && children}
         {active === "accounts" && <AccountsPanel />}
         {active === "classes" && <ClassesPanel />}
         {active === "import" && <ImportCsvForm />}
         {active === "groups" && <GroupsPanel />}
-        {active === "class_mode" && <div className="bg-white p-4 rounded shadow">上課模式設定（待實作）</div>}
-        {active === "report_mode" && <div className="bg-white p-4 rounded shadow">報告模式設定（待實作）</div>}
+        {active === "class_mode" && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow-md border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">上課模式</h2>
+            <p className="text-gray-600 dark:text-gray-400">上課模式設定（待實作）</p>
+          </div>
+        )}
+        {active === "report_mode" && (
+          <ReportModePanel user={user as any} />
+        )}
+        {active === "score_query" && (
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md border border-gray-200 dark:border-gray-700">
+            <ScoreQueryPanel user={user as any} />
+          </div>
+        )}
       </main>
     </div>
   );
