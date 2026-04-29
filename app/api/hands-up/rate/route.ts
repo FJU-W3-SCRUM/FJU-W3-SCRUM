@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     // 3. Mark the student's hand as answered/picked if they were raising hand previously
     const { data: handsUpUpdate, error: handsUpError } = await supabase
       .from('hand_raises')
-      .update({ status: 'A' }) // A = Answered / Picked (per spec)
+      .update({ status: 'Y' }) // Get picked
       .eq('session_id', session_id)
       .eq('account_id', target_account_id)
       .eq('status', 'R')

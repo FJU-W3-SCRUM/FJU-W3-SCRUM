@@ -80,7 +80,7 @@ Notes:
 
 | 欄位名稱 | 型別 | 說明 |
 |---|---|---|
-| id | BIGINT (PK) | 課堂 ID /session_id |
+| id | BIGINT (PK) | 課堂 ID |
 | class_id | BIGINT (FK) | 班級 ID |
 | title | VARCHAR(100) | 課堂名稱 |
 | max_point | INT | 本堂課最高可得分 |
@@ -143,7 +143,7 @@ Notes:
 | account_id | int8(PK) | 學生ID |
 | *student_no | VARCHAR(50) (FK) | 學號 / 登入帳號 <沒有此欄位,account_id取代> |
 | raised_at | DATETIME | 舉手時間 |
-| status | VARCHAR(16) | 是否被點名 ,DEFAULT ''; 'R':Raise hand舉手; 'P':Put down,放下; 'A':Answer已被點回答; 'C':Clear全部清除|
+| status | VARCHAR(16) | 是否被點名 ,DEFAULT 'pending' -- 'pending', 'cleared', 'answered'|
 
 ✅ 用於統計：
 

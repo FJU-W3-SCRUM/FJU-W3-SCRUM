@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+import { describe, it, expect, vi } from "vitest";
+import { POST as importHandler } from "@/app/api/import/route";
+=======
 // Mock supabase client，避免測試時真的連線 Supabase
 import { vi } from "vitest";
 // 建立可在 it 區塊自訂的 mock 行為
@@ -16,10 +20,10 @@ vi.mock("@/lib/supabase/client", () => ({
 }));
 import { describe, it, expect} from "vitest";
 import { POST as importHandler } from "../app/api/import/route";
+>>>>>>> 4fad637ff6a5e8beb388a05c1fb296de89418efb
 import { NextRequest } from "next/server";
 
-// Mock the auth-helpers-nextjs module
-vi.mock("@supabase/auth-helpers-nextjs", () => {
+vi.mock('@/lib/supabase/client', () => {
   const mockInsert = vi.fn().mockReturnThis();
   const mockSelect = vi.fn(() => ({ error: null, count: 2 }));
   const mockEq = vi.fn(() => ({ data: [], error: null }));
@@ -32,20 +36,20 @@ vi.mock("@supabase/auth-helpers-nextjs", () => {
       insert: mockInsert,
     })),
   };
-  
-  // Add a way to access the mock insert to check calls
+
   supabase.from.mockImplementation(() => ({
     select: vi.fn(() => ({
       eq: mockEq,
     })),
     insert: vi.fn(() => ({
-        select: mockSelect
+      select: mockSelect,
     })),
   }));
 
-
   return {
-    createRouteHandlerClient: vi.fn(() => supabase),
+    __esModule: true,
+    default: supabase, // Add default export
+    supabase,
   };
 });
 
@@ -99,9 +103,20 @@ describe("POST /api/import", () => {
   });
 
   it("should detect and report duplicates", async () => {
+<<<<<<< HEAD
+    // Mock that S123456 already exists in the DB for this class
+    const { supabase } = await import("@/lib/supabase/client");
+    
+    (supabase.from("accounts").select().eq as any).mockResolvedValue({
+        data: [{ student_no: "S123456" }],
+        error: null,
+    });
+
+=======
     // mock 查詢 class_id 下已有 S123456
     mockSelect.mockReturnValueOnce({ data: [{ student_no: "S123456" }], error: null });
     mockInsert.mockReturnValueOnce({ error: null });
+>>>>>>> 4fad637ff6a5e8beb388a05c1fb296de89418efb
     const csvPayload = `王大明,S123456\n陳小美,S654321`;
     const classId = "1";
     const payload = { csv: `name,student_no\n${csvPayload}`, class_id: classId };

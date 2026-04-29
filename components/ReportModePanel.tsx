@@ -25,7 +25,6 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
   
   const [availableSessions, setAvailableSessions] = useState<any[]>([]);
   const [message, setMessage] = useState("");
-  const [maxPoint, setMaxPoint] = useState<number>(15);
 
   // ============================
   // Student Flow
@@ -197,10 +196,11 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
              class_id: selectedClassId,
              title: `課堂互動 - ${new Date().toLocaleDateString()}`,
              status: 'open',
-             qna_open: false,
+
              max_point: maxPoint,
              starts_at: new Date().toISOString(),
              created_by: user.student_no
+
          }])
          .select()
          .single();
@@ -281,6 +281,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
 
   // Teacher/Admin rendering
   return (
+
     <div className="space-y-6 w-full">
       {/* Section 1: Join existing session - shown to teacher like student can do */}
       {availableSessions.length > 0 && (
@@ -294,6 +295,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
                重新整理
              </button>
           </div>
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {availableSessions.map((s) => (
