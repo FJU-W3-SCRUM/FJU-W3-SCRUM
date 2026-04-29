@@ -9,15 +9,35 @@ export async function POST(request: Request) {
     
     const { session_id, hand_raise_id, target_account_id, rater_account_id, stars } = await request.json();
 
-    if (!session_id || !target_account_id || !rater_account_id || !stars) {
-      return NextResponse.json({ error: 'Missing required fields (session_id, target_account_id, rater_account_id, stars)' }, { status: 400 });
+    if (!session_id || !target_account_id || !stars) {
+      return NextResponse.json({ error: 'Missing required fields (session_id, target_account_id, stars)' }, { status: 400 });
     }
     
     if (stars < 1 || stars > 5) {
       return NextResponse.json({ error: 'Stars must be between 1 and 5' }, { status: 400 });
     }
 
-    console.log(`[Rate API] Processing rating - Session: ${session_id}, Target: ${target_account_id}, Stars: ${stars}, HandRaiseId: ${hand_raise_id}`);
+    console.log(`[Rate API] Processing rating - Session: ${session_id}, Target: ${target_account_id}, Stars: ${stars}, Rater: ${rater_account_id}, HandRaiseId: ${hand_raise_id}`);
+
+    // 驗證 rater_account_id 是否存在於 accounts 表
+    let validRaterAccountId = rater_account_id;
+    if (rater_account_id) {
+      const { data: raterAccount, error: raterError } = await supabase
+        .from('accounts')
+        .select('id')
+        .eq('id', rater_account_id)
+        .maybeSingle();
+
+      if (raterError) {
+        console.error('[Rate API] Error checking rater account:', raterError);
+        return NextResponse.json({ error: `Failed to verify rater: ${raterError.message}` }, { status: 500 });
+      }
+
+      if (!raterAccount) {
+        console.warn(`[Rate API] Rater account ${rater_account_id} not found in accounts table, will set rater_account_id to NULL`);
+        validRaterAccountId = null;
+      }
+    }
 
     // Since rating spans across answering and hand_raises tables, let's use a transaction or serial await
     // 1. Create a dummy answer representing oral reply
@@ -45,7 +65,7 @@ export async function POST(request: Request) {
       .insert({
         session_id,
         answer_id,
-        rater_account_id,
+        rater_account_id: validRaterAccountId,
         star: stars,
         source: 'teacher'
       })

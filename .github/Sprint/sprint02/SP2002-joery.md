@@ -282,3 +282,55 @@ const { data: answerData, error: answerError } = await supabase
 - ✅ 編譯成功 (0 errors)
 - ✅ answers 表只使用實際存在的欄位
 - ✅ TableSchema.md 已更新
+
+## SP2002-BugFix-TeacherRaterAccountIdFK
+
+✅ **已修復**
+
+### 問題描述
+老師評分時出錯：
+```
+評分失敗: insert or update on table "ratings" violates foreign key constraint "ratings_rater_account_id_fkey"
+```
+
+### 根本原因
+`rater_account_id` 指向一個在 accounts 表中不存在的 ID。通常發生在：
+1. 老師沒有在該班級的 accounts 表中被註冊
+2. 或者老師的 account_id 無效
+
+### 修復方案
+
+**方案 1：Rate API 驗證** (`/app/api/hands-up/rate/route.ts`)
+- 在插入 rating 前驗證 `rater_account_id` 是否存在於 accounts 表
+- 如果不存在，將 `rater_account_id` 設為 NULL（允許評分但不記錄具體評分者）
+- 這樣老師可以正常評分，即使他們沒有在該班級被註冊
+
+**方案 2：SessionPage 查詢** (`/app/sessions/[session_id]/page.tsx`)
+- 為老師添加初始化邏輯，進入課堂時查詢該班級的 teacher_id
+- 新增 API `/api/auth/get-teacher-account-id`，根據 class_id 返回該班級的老師 account_id
+- 自動使用有效的 teacher_account_id，而不是登入時的可能無效的 ID
+
+**新增 API：** `/api/auth/get-teacher-account-id`
+```typescript
+GET /api/auth/get-teacher-account-id?class_id=1
+返回: { teacher_account_id: 42, teacher_name: "王老師" }
+或: { teacher_account_id: null, teacher_name: null } // 如果班級未設置老師
+```
+
+### 完整流程
+
+**老師進入課堂時：**
+```
+1. 取得課堂資訊（包含 class_id）
+2. 查詢 GET /api/auth/get-teacher-account-id?class_id=3
+3. 如果找到 teacher_account_id，使用該值
+4. 如果未找到，保留原有 account_id（rate API 會驗證並設為 NULL）
+5. 點名評分時，使用有效的 rater_account_id 或 NULL
+```
+
+### 驗證
+- ✅ 編譯成功 (0 errors)
+- ✅ Rate API 增加驗證邏輯
+- ✅ SessionPage 為老師新增 account_id 查詢
+- ✅ 新增 get-teacher-account-id API
+- ✅ 允許 rater_account_id 為 NULL 作為備用方案

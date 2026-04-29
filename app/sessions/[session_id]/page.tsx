@@ -157,17 +157,29 @@ export default function SessionPage() {
            setInitialMembers(data.members || []);
            updateUIFromData(data);
            
-           // 修復：學生進入課堂時，需要根據 student_no + class_id 查詢正確的 account_id
-           // 解決同一學號在不同班級有不同 account_id 的問題
-           if (currentUser && !canManage && data.class_id) {
+           // 修復：根據課堂所屬的班級和用戶身份，查詢正確的 account_id
+           if (currentUser && data.class_id) {
              try {
-               // 根據 student_no 和該課堂的 class_id 查詢正確的 account_id
-               const res = await fetch(`/api/auth/get-account-id-by-class?student_no=${currentUser.student_no}&class_id=${data.class_id}`);
-               const result = await res.json();
-               
-               if (result.account_id) {
-                 console.log(`[SessionPage] 更正 account_id: ${currentUserAccountId} → ${result.account_id} (for class_id: ${data.class_id})`);
-                 setCurrentUserAccountId(result.account_id);
+               if (!canManage) {
+                 // 學生：根據 student_no + class_id 查詢正確的 account_id
+                 const res = await fetch(`/api/auth/get-account-id-by-class?student_no=${currentUser.student_no}&class_id=${data.class_id}`);
+                 const result = await res.json();
+                 
+                 if (result.account_id) {
+                   console.log(`[SessionPage] 更正學生 account_id: ${currentUserAccountId} → ${result.account_id} (for class_id: ${data.class_id})`);
+                   setCurrentUserAccountId(result.account_id);
+                 }
+               } else {
+                 // 老師：嘗試從該班級查詢對應的 teacher_id
+                 const res = await fetch(`/api/auth/get-teacher-account-id?class_id=${data.class_id}`);
+                 const result = await res.json();
+                 
+                 if (result.teacher_account_id) {
+                   console.log(`[SessionPage] 更正老師 account_id: ${currentUserAccountId} → ${result.teacher_account_id} (for class_id: ${data.class_id})`);
+                   setCurrentUserAccountId(result.teacher_account_id);
+                 } else {
+                   console.warn(`[SessionPage] 未找到班級 ${data.class_id} 的老師 account_id，將使用 NULL 進行評分`);
+                 }
                }
              } catch (e) {
                console.error('[SessionPage] Failed to get correct account_id:', e);
