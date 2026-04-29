@@ -36,19 +36,14 @@ export async function POST(request: Request) {
                 .eq('session_id', session_id)
                 .eq('group_id', presenting_group_id);
            
-           // We still update session status for UI filtering, but NOT the starts_at/ends_at
-           await supabase.from('sessions')
-                .update({ status: 'P' })
-                .eq('id', session_id);
+           // sessions.status remains 'open' during report - only session_groups.status changes
        } else if (report_action === 'end') {
            await supabase.from('session_groups')
                 .update({ status: 'Y', ended_at: now })
                 .eq('session_id', session_id)
                 .eq('group_id', presenting_group_id);
 
-           await supabase.from('sessions')
-                .update({ status: 'Y' })
-                .eq('id', session_id);
+           // sessions.status remains 'open' - only end entire session with 'closed' when teacher ends
        }
     }
 
@@ -60,10 +55,11 @@ export async function POST(request: Request) {
             const { data: sess } = await supabase.from('sessions').select('starts_at').eq('id', session_id).single();
             if (sess && !sess.starts_at) {
                 await supabase.from('sessions')
-                    .update({ starts_at: now, status: 'active' })
+                    .update({ starts_at: now })
                     .eq('id', session_id);
             }
         } else if (session_action === 'end_session') {
+            // Set status to 'closed' when teacher ends the entire session
             await supabase.from('sessions')
                 .update({ ends_at: now, status: 'closed' })
                 .eq('id', session_id);

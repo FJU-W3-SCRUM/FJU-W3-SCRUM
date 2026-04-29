@@ -133,3 +133,204 @@ ORDER BY A.session_id DESC, A.account_id ASC
 
 - 學生角色：
   - 只能查詢同班的成績，指『班別DropdownList』只會列出自己有的班別
+
+
+---
+
+## issue-SP2002-Task01
+
+```prompt
+參考 @{} 以下逐一修改，修改完成後修改對應task, 畫押為完成 [ ]-> [X]
+
+```
+
+- 報告模式』
+  - [X] 執行 "放下所有舉手"，組員最右方的舉手及分數顯示未顯示或需要一陣時間才顯示
+        > 是否還可優化同步速度更即時更快
+  - [X] "結束課堂"時，請轉頁到index首頁
+  - [X] 如果直接執行url sessions/{session_id}，若該課堂已結束則不允許再進入        
+        > ex:http://localhost:3000/sessions/85  
+        > 課堂結束判斷 When status = 'closed' OR ends_at IS NOT NULL
+  - [X] 進入報告模式選擇課堂時，把 session_id 加在課堂名稱後,ex: 課堂title(session_id)
+  - [X] 若為老師角色,除了原本老師可以建立課堂功能外，再這功能上方也加入學生角色進入時可以選擇課堂的畫面
+        > 若老師不小心登出，可以重新進入報告模式
+  - [X] 資料表[sessions].status狀態值:ENUM('draft','open','closed') ，請分析系統上使用的狀態,修改為對的
+    - [X] 老師建立課堂時應為:`open`，結束課堂時為:`closed`
+
+
+  
+// 1. 查詢 student_no 對應的所有 class_id（可能多筆）
+const { data: accounts } = await supabase
+  .from('accounts')
+  .select('class_id')
+  .eq('student_no', student_no);  // ← 支援多筆記錄
+
+const classIds = accounts.map(a => a.class_id).filter(Boolean);
+
+// 2. 取得這些班級的所有進行中課堂
+const { data: sessions } = await supabase
+  .from('sessions')
+  .select('...')
+  .in('class_id', classIds)  // ← 檢索所有班級
+  .not('starts_at', 'is', null)
+  .is('ends_at', null);
+
+// 3. 對每個班級只保留最新課堂
+const latestSessionsMap: Record<number, any> = {};
+sessions.forEach((s) => {
+  const classId = s.class_id;
+  if (!latestSessionsMap[classId] || s.id > latestSessionsMap[classId].id) {
+    latestSessionsMap[classId] = s;  // ← 每班級保留最新
+  }
+});
+
+
+## SP2001-Task01-issue-2acctRaiseIssue
+
+✅ **已修復**
+
+該問題為資料表[accounts]在不同的班別class_id裡有相同的 student_no
+- 例如 student_no=414155259 在 class_id=6 和 class_id=3 中各有一條記錄（account_id 分別為 211 和 186）
+- 進入課堂時沒有根據該課堂的 class_id 查詢正確的 account_id，導致舉手記錄到錯誤的賬戶
+
+### 修復方案
+
+**修改位置：** [app/sessions/[session_id]/page.tsx](../../50_Project/CLASS-HANDS-UP/app/sessions/[session_id]/page.tsx)
+
+在初始化 Session 時，進行以下步驟：
+1. 獲取課堂的 overview 數據（包含 class_id）
+2. 對於學生身份用戶，根據 `student_no + class_id` 重新查詢正確的 account_id
+3. 更新 currentUserAccountId 為正確值
+
+**新增 API：** `/api/auth/get-account-id-by-class`
+- 根據 student_no 和 class_id 查詢該學生在該班級對應的 account_id
+- 解決同一學號在不同班級有不同 account_id 的問題
+
+### 完整流程
+
+```
+學生進入課堂
+  ↓
+SessionPage 加載，獲取 overview 數據（包含 class_id）
+  ↓
+如果用戶是學生，調用 GET /api/auth/get-account-id-by-class?student_no=414155259&class_id=3
+  ↓
+查詢結果：account_id=186（這是該學生在 class_id=3 中的正確ID）
+  ↓
+更新 currentUserAccountId = 186
+  ↓
+之後所有舉手、評分等操作都使用正確的 account_id=186
+```
+
+### 驗證
+
+該修復確保：
+- ✅ 同一學號在不同班級時使用正確的 account_id
+- ✅ 舉手記錄到正確的課堂
+- ✅ 分數統計準確
+- ✅ 點名評分綁定正確的學生
+
+## SP2002-BugFix-AnswersSchemaError
+
+✅ **已修復**
+
+### 問題描述
+老師、報告組長點名同學評分功能出錯：
+```
+評分失敗: Failed to create answer: Could not find the 'hand_raise_id' column of 'answers' in the schema cache
+```
+
+### 根本原因
+在 `/api/hands-up/rate` 端點中，試圖在 answers 表插入不存在的欄位 `hand_raise_id`。
+
+根據資料庫架構，answers 表的欄位為：
+- id (PK)
+- session_id (FK)
+- account_id (FK) - 回答學生 ID
+- answered_at (TIMESTAMP)
+- content (TEXT)
+
+不應包含 `hand_raise_id`。
+
+### 修復方案
+**修改檔案：** `/app/api/hands-up/rate/route.ts`
+
+移除在 insert 時寫入的 `hand_raise_id: hand_raise_id || null` 行：
+
+```typescript
+// 修復前
+const { data: answerData, error: answerError } = await supabase
+  .from('answers')
+  .insert({
+    session_id,
+    account_id: target_account_id,
+    content: '口頭回答 (Oral Response)',
+    hand_raise_id: hand_raise_id || null  // ❌ 移除
+  })
+
+// 修復後
+const { data: answerData, error: answerError } = await supabase
+  .from('answers')
+  .insert({
+    session_id,
+    account_id: target_account_id,
+    content: '口頭回答 (Oral Response)'
+  })
+```
+
+### 驗證
+- ✅ 編譯成功 (0 errors)
+- ✅ answers 表只使用實際存在的欄位
+- ✅ TableSchema.md 已更新
+
+## SP2002-BugFix-TeacherRaterAccountIdFK
+
+✅ **已修復**
+
+### 問題描述
+老師評分時出錯：
+```
+評分失敗: insert or update on table "ratings" violates foreign key constraint "ratings_rater_account_id_fkey"
+```
+
+### 根本原因
+`rater_account_id` 指向一個在 accounts 表中不存在的 ID。通常發生在：
+1. 老師沒有在該班級的 accounts 表中被註冊
+2. 或者老師的 account_id 無效
+
+### 修復方案
+
+**方案 1：Rate API 驗證** (`/app/api/hands-up/rate/route.ts`)
+- 在插入 rating 前驗證 `rater_account_id` 是否存在於 accounts 表
+- 如果不存在，將 `rater_account_id` 設為 NULL（允許評分但不記錄具體評分者）
+- 這樣老師可以正常評分，即使他們沒有在該班級被註冊
+
+**方案 2：SessionPage 查詢** (`/app/sessions/[session_id]/page.tsx`)
+- 為老師添加初始化邏輯，進入課堂時查詢該班級的 teacher_id
+- 新增 API `/api/auth/get-teacher-account-id`，根據 class_id 返回該班級的老師 account_id
+- 自動使用有效的 teacher_account_id，而不是登入時的可能無效的 ID
+
+**新增 API：** `/api/auth/get-teacher-account-id`
+```typescript
+GET /api/auth/get-teacher-account-id?class_id=1
+返回: { teacher_account_id: 42, teacher_name: "王老師" }
+或: { teacher_account_id: null, teacher_name: null } // 如果班級未設置老師
+```
+
+### 完整流程
+
+**老師進入課堂時：**
+```
+1. 取得課堂資訊（包含 class_id）
+2. 查詢 GET /api/auth/get-teacher-account-id?class_id=3
+3. 如果找到 teacher_account_id，使用該值
+4. 如果未找到，保留原有 account_id（rate API 會驗證並設為 NULL）
+5. 點名評分時，使用有效的 rater_account_id 或 NULL
+```
+
+### 驗證
+- ✅ 編譯成功 (0 errors)
+- ✅ Rate API 增加驗證邏輯
+- ✅ SessionPage 為老師新增 account_id 查詢
+- ✅ 新增 get-teacher-account-id API
+- ✅ 允許 rater_account_id 為 NULL 作為備用方案
