@@ -192,7 +192,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
                 <div className="flex justify-between items-start">
                    <div>
                       <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200 group-hover:text-blue-600">{s.class_name}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title} ({s.id})</p>
                    </div>
                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded">
                       正在進行中

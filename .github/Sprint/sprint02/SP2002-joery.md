@@ -133,3 +133,26 @@ ORDER BY A.session_id DESC, A.account_id ASC
 
 - 學生角色：
   - 只能查詢同班的成績，指『班別DropdownList』只會列出自己有的班別
+
+
+---
+
+## issue-SP2002-Task01
+
+```prompt
+參考 @{} 以下逐一修改，修改完成後修改對應task, 畫押為完成 [ ]-> [X]
+
+```
+
+- 報告模式』
+  - [X] 執行 "放下所有舉手"，組員最右方的舉手及分數顯示未顯示或需要一陣時間才顯示
+        > 是否還可優化同步速度更即時更快
+  - [X] "結束課堂"時，請轉頁到index首頁
+  - [X] 如果直接執行url sessions/{session_id}，若該課堂已結束則不允許再進入        
+        > ex:http://localhost:3000/sessions/85  
+        > 課堂結束判斷 When status = 'closed' OR ends_at IS NOT NULL
+  - [X] 進入報告模式選擇課堂時，把 session_id 加在課堂名稱後,ex: 課堂title(session_id)
+  - [ ] 若為老師角色,除了原本老師可以建立課堂功能外，再這功能上方也加入學生角色進入時可以選擇課堂的畫面
+        > 若老師不小心登出，可以重新進入報告模式
+
+  
