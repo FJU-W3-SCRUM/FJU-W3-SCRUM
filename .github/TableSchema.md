@@ -158,11 +158,14 @@ Notes:
 |---|---|---|
 | id | BIGINT (PK) | 回答紀錄 ID |
 | session_id | BIGINT (FK) | 課堂 ID |
-| student_no | VARCHAR(50) (FK) | 回答學號 / 登入帳號 |
+| account_id | BIGINT (FK) | 回答學生 ID |
 | answered_at | DATETIME | 回答時間 |
+| content | TEXT | 回答內容或來源描述 |
 
 Notes:
-- 若需要記錄回答內容或回放，可以增加 `content` 或 `recording_url` 欄位。
+- 若需要記錄回答內容或回放，可以增加 `recording_url` 欄位。
+- 該表用於記錄學生被點名回答時建立的回答記錄。
+- 與 ratings 表配合使用：ratings.answer_id 指向此表的 id。
 
 ✅ 用於統計「實際回答次數」
 

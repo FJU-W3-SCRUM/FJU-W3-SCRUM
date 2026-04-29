@@ -229,3 +229,56 @@ SessionPage 加載，獲取 overview 數據（包含 class_id）
 - ✅ 舉手記錄到正確的課堂
 - ✅ 分數統計準確
 - ✅ 點名評分綁定正確的學生
+
+## SP2002-BugFix-AnswersSchemaError
+
+✅ **已修復**
+
+### 問題描述
+老師、報告組長點名同學評分功能出錯：
+```
+評分失敗: Failed to create answer: Could not find the 'hand_raise_id' column of 'answers' in the schema cache
+```
+
+### 根本原因
+在 `/api/hands-up/rate` 端點中，試圖在 answers 表插入不存在的欄位 `hand_raise_id`。
+
+根據資料庫架構，answers 表的欄位為：
+- id (PK)
+- session_id (FK)
+- account_id (FK) - 回答學生 ID
+- answered_at (TIMESTAMP)
+- content (TEXT)
+
+不應包含 `hand_raise_id`。
+
+### 修復方案
+**修改檔案：** `/app/api/hands-up/rate/route.ts`
+
+移除在 insert 時寫入的 `hand_raise_id: hand_raise_id || null` 行：
+
+```typescript
+// 修復前
+const { data: answerData, error: answerError } = await supabase
+  .from('answers')
+  .insert({
+    session_id,
+    account_id: target_account_id,
+    content: '口頭回答 (Oral Response)',
+    hand_raise_id: hand_raise_id || null  // ❌ 移除
+  })
+
+// 修復後
+const { data: answerData, error: answerError } = await supabase
+  .from('answers')
+  .insert({
+    session_id,
+    account_id: target_account_id,
+    content: '口頭回答 (Oral Response)'
+  })
+```
+
+### 驗證
+- ✅ 編譯成功 (0 errors)
+- ✅ answers 表只使用實際存在的欄位
+- ✅ TableSchema.md 已更新

@@ -26,8 +26,7 @@ export async function POST(request: Request) {
       .insert({
         session_id,
         account_id: target_account_id,
-        content: '口頭回答 (Oral Response)',
-        hand_raise_id: hand_raise_id || null
+        content: '口頭回答 (Oral Response)'
       })
       .select('id')
       .single();
