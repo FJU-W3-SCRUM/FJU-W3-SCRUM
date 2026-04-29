@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     // In a real app we'd verify the JWT user role first:
     // const { data: { user } } = await supabase.auth.getUser();
     
-    const { session_id, target_account_id, rater_account_id, stars } = await request.json();
+    const { session_id, hand_raise_id, target_account_id, rater_account_id, stars } = await request.json();
 
     if (!session_id || !target_account_id || !rater_account_id || !stars) {
       return NextResponse.json({ error: 'Missing required fields (session_id, target_account_id, rater_account_id, stars)' }, { status: 400 });
@@ -17,6 +17,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Stars must be between 1 and 5' }, { status: 400 });
     }
 
+    console.log(`[Rate API] Processing rating - Session: ${session_id}, Target: ${target_account_id}, Stars: ${stars}, HandRaiseId: ${hand_raise_id}`);
+
     // Since rating spans across answering and hand_raises tables, let's use a transaction or serial await
     // 1. Create a dummy answer representing oral reply
     const { data: answerData, error: answerError } = await supabase
@@ -24,14 +26,18 @@ export async function POST(request: Request) {
       .insert({
         session_id,
         account_id: target_account_id,
-        content: '口頭回答 (Oral Response)' // Pre-filled text denoting standard spoken answer
+        content: '口頭回答 (Oral Response)',
+        hand_raise_id: hand_raise_id || null
       })
       .select('id')
       .single();
 
     if (answerError) {
-      return NextResponse.json({ error: answerError.message }, { status: 500 });
+      console.error('Error creating answer:', answerError);
+      return NextResponse.json({ error: `Failed to create answer: ${answerError.message}` }, { status: 500 });
     }
+
+    console.log(`[Rate API] Created answer record with ID: ${answerData.id}`);
 
     // 2. Insert the rating pointing to this new answer
     const answer_id = answerData.id;
@@ -42,16 +48,19 @@ export async function POST(request: Request) {
         answer_id,
         rater_account_id,
         star: stars,
-        source: 'group_representative'
+        source: 'teacher'
       })
       .select()
       .single();
 
     if (ratingError) {
-      return NextResponse.json({ error: ratingError.message }, { status: 500 });
+      console.error('Error creating rating:', ratingError);
+      return NextResponse.json({ error: `Failed to create rating: ${ratingError.message}` }, { status: 500 });
     }
 
-    // 3. Mark the student's hand lower/answered if they were raising hand previously
+    console.log(`[Rate API] Created rating record: ${ratingData.id}`);
+
+    // 3. Mark the student's hand as answered/picked if they were raising hand previously
     const { data: handsUpUpdate, error: handsUpError } = await supabase
       .from('hand_raises')
       .update({ status: 'A' }) // A = Answered / Picked (per spec)
@@ -60,9 +69,22 @@ export async function POST(request: Request) {
       .eq('status', 'R')
       .select();
 
-    return NextResponse.json({ message: 'Rated successfully', rating: ratingData }, { status: 201 });
+    if (handsUpError) {
+      console.error('Error updating hand_raises:', handsUpError);
+      // Don't fail the entire request if hand_raises update fails, as rating was already created
+    } else {
+      console.log(`[Rate API] Updated ${handsUpUpdate?.length || 0} hand_raises records to status 'A'`);
+    }
+
+    return NextResponse.json({ 
+      message: 'Rated successfully', 
+      rating: ratingData,
+      answer_id: answer_id,
+      hands_updated: handsUpUpdate?.length || 0
+    }, { status: 201 });
 
   } catch (err: any) {
+    console.error('[Rate API] Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

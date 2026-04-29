@@ -86,11 +86,20 @@ export default function SessionPage() {
   // Define update logic in a shared function
   const updateUIFromData = (data: any) => {
     if(!data || data.error) return;
+    
+    const sessionStatus = data.session_status || '';
+    
+    // 檢查課堂是否已關閉 - 如果已關閉，重定向到首頁
+    if (sessionStatus === 'closed') {
+      console.log('[SessionPage] 課堂已結束，重定向到首頁');
+      router.push('/');
+      return;
+    }
+    
     setClassName(data.class_name || "");
     setQnaOpen(data.qna_open !== false);
     
     const dbGroupId = data.presenting_group_id?.toString() || null;
-    const sessionStatus = data.session_status || '';
     const groups = data.available_groups || [];
     
     setPresentingStatus(data.presenting_status || 'N');
@@ -98,7 +107,7 @@ export default function SessionPage() {
     setAvailableGroups(groups);
 
     // Group selection persistence
-    if (!dbGroupId && sessionStatus === 'R' && groups.length > 0) {
+    if (!dbGroupId && sessionStatus === 'open' && groups.length > 0) {
        setPresentingGroupId(groups[0].id.toString());
     } else {
        setPresentingGroupId(dbGroupId);
@@ -142,15 +151,33 @@ export default function SessionPage() {
     // Initial Fetch
     fetch(`/api/hands-up/overview?session_id=${session_id}`)
       .then(res => res.json())
-      .then(data => {
+      .then(async (data) => {
           if(data && !data.error) {
            setInitialQueue(data.hands_up_queue || []);
            setInitialMembers(data.members || []);
            updateUIFromData(data);
+           
+           // 修復：學生進入課堂時，需要根據 student_no + class_id 查詢正確的 account_id
+           // 解決同一學號在不同班級有不同 account_id 的問題
+           if (currentUser && !canManage && data.class_id) {
+             try {
+               // 根據 student_no 和該課堂的 class_id 查詢正確的 account_id
+               const res = await fetch(`/api/auth/get-account-id-by-class?student_no=${currentUser.student_no}&class_id=${data.class_id}`);
+               const result = await res.json();
+               
+               if (result.account_id) {
+                 console.log(`[SessionPage] 更正 account_id: ${currentUserAccountId} → ${result.account_id} (for class_id: ${data.class_id})`);
+                 setCurrentUserAccountId(result.account_id);
+               }
+             } catch (e) {
+               console.error('[SessionPage] Failed to get correct account_id:', e);
+               // 繼續使用原有的 account_id
+             }
+           }
          }
       })
       .catch(err => console.error("Initial load failed", err));
-  }, [session_id]);
+  }, [session_id, currentUser, canManage, currentUserAccountId]);
 
   const handleToggleQna = async () => {
     const newState = !qnaOpen;
@@ -271,20 +298,34 @@ export default function SessionPage() {
   const handleSubmitRating = async (stars: number) => {
     if (!ratingTarget) return;
     try {
-      await fetch('/api/hands-up/rate', {
+      const res = await fetch('/api/hands-up/rate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id,
+          hand_raise_id: ratingTarget.handRaiseId,
           target_account_id: ratingTarget.accountId,
           rater_account_id: currentUserAccountId,
           stars
         })
       });
-      refresh();
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || '評分失敗');
+      }
+      
+      const result = await res.json();
+      console.log('Rating submitted successfully:', result);
+      
+      // 立即刷新以更新UI
+      await refresh();
       startPolling(); // Enable aggressive polling for 3 seconds
+      
+      alert(`評分成功！共 ${stars} 顆星`);
     } catch(e) {
        console.error("Failed rating", e);
+       alert(`評分失敗: ${e instanceof Error ? e.message : '未知錯誤'}`);
     } finally {
        setRatingModalOpen(false);
        setRatingTarget(null);

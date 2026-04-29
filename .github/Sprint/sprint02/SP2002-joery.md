@@ -152,7 +152,80 @@ ORDER BY A.session_id DESC, A.account_id ASC
         > ex:http://localhost:3000/sessions/85  
         > 課堂結束判斷 When status = 'closed' OR ends_at IS NOT NULL
   - [X] 進入報告模式選擇課堂時，把 session_id 加在課堂名稱後,ex: 課堂title(session_id)
-  - [ ] 若為老師角色,除了原本老師可以建立課堂功能外，再這功能上方也加入學生角色進入時可以選擇課堂的畫面
+  - [X] 若為老師角色,除了原本老師可以建立課堂功能外，再這功能上方也加入學生角色進入時可以選擇課堂的畫面
         > 若老師不小心登出，可以重新進入報告模式
+  - [X] 資料表[sessions].status狀態值:ENUM('draft','open','closed') ，請分析系統上使用的狀態,修改為對的
+    - [X] 老師建立課堂時應為:`open`，結束課堂時為:`closed`
+
 
   
+// 1. 查詢 student_no 對應的所有 class_id（可能多筆）
+const { data: accounts } = await supabase
+  .from('accounts')
+  .select('class_id')
+  .eq('student_no', student_no);  // ← 支援多筆記錄
+
+const classIds = accounts.map(a => a.class_id).filter(Boolean);
+
+// 2. 取得這些班級的所有進行中課堂
+const { data: sessions } = await supabase
+  .from('sessions')
+  .select('...')
+  .in('class_id', classIds)  // ← 檢索所有班級
+  .not('starts_at', 'is', null)
+  .is('ends_at', null);
+
+// 3. 對每個班級只保留最新課堂
+const latestSessionsMap: Record<number, any> = {};
+sessions.forEach((s) => {
+  const classId = s.class_id;
+  if (!latestSessionsMap[classId] || s.id > latestSessionsMap[classId].id) {
+    latestSessionsMap[classId] = s;  // ← 每班級保留最新
+  }
+});
+
+
+## SP2001-Task01-issue-2acctRaiseIssue
+
+✅ **已修復**
+
+該問題為資料表[accounts]在不同的班別class_id裡有相同的 student_no
+- 例如 student_no=414155259 在 class_id=6 和 class_id=3 中各有一條記錄（account_id 分別為 211 和 186）
+- 進入課堂時沒有根據該課堂的 class_id 查詢正確的 account_id，導致舉手記錄到錯誤的賬戶
+
+### 修復方案
+
+**修改位置：** [app/sessions/[session_id]/page.tsx](../../50_Project/CLASS-HANDS-UP/app/sessions/[session_id]/page.tsx)
+
+在初始化 Session 時，進行以下步驟：
+1. 獲取課堂的 overview 數據（包含 class_id）
+2. 對於學生身份用戶，根據 `student_no + class_id` 重新查詢正確的 account_id
+3. 更新 currentUserAccountId 為正確值
+
+**新增 API：** `/api/auth/get-account-id-by-class`
+- 根據 student_no 和 class_id 查詢該學生在該班級對應的 account_id
+- 解決同一學號在不同班級有不同 account_id 的問題
+
+### 完整流程
+
+```
+學生進入課堂
+  ↓
+SessionPage 加載，獲取 overview 數據（包含 class_id）
+  ↓
+如果用戶是學生，調用 GET /api/auth/get-account-id-by-class?student_no=414155259&class_id=3
+  ↓
+查詢結果：account_id=186（這是該學生在 class_id=3 中的正確ID）
+  ↓
+更新 currentUserAccountId = 186
+  ↓
+之後所有舉手、評分等操作都使用正確的 account_id=186
+```
+
+### 驗證
+
+該修復確保：
+- ✅ 同一學號在不同班級時使用正確的 account_id
+- ✅ 舉手記錄到正確的課堂
+- ✅ 分數統計準確
+- ✅ 點名評分綁定正確的學生

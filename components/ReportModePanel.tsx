@@ -31,10 +31,71 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
   // Student Flow
   // ============================
   const fetchStudentSessions = async () => {
-    if (!user?.student_no) return;
+    if (!user?.student_no && role !== "admin" && role !== "teacher") return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/hands-up/student-sessions?student_no=${user.student_no}`);
+      
+      let url = '/api/hands-up/student-sessions';
+      // For students, use student_no
+      if (role === "student") {
+        url += `?student_no=${user.student_no}`;
+      } else {
+        // For teacher/admin, fetch all active sessions from their classes
+        const { data: classes, error: classError } = await supabase
+          .from("classes")
+          .select("id");
+        
+        if (classError) throw classError;
+        
+        const classIds = classes?.map(c => c.id) || [];
+        if (classIds.length === 0) {
+          setAvailableSessions([]);
+          setLoading(false);
+          return;
+        }
+        
+        const { data: sessions, error: sessionError } = await supabase
+          .from('sessions')
+          .select(`
+            id,
+            title,
+            status,
+            starts_at,
+            class_id,
+            classes (
+              class_name
+            )
+          `)
+          .in('class_id', classIds)
+          .not('starts_at', 'is', null)
+          .is('ends_at', null)
+          .order('created_at', { ascending: false });
+        
+        if (sessionError) throw sessionError;
+        
+        // Filter: keep only the latest session per class
+        const latestSessionsMap: Record<number, any> = {};
+        sessions?.forEach((s: any) => {
+          const classId = s.class_id;
+          if (!latestSessionsMap[classId] || s.id > latestSessionsMap[classId].id) {
+            latestSessionsMap[classId] = s;
+          }
+        });
+        
+        const formattedSessions = Object.values(latestSessionsMap).map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          class_name: s.classes?.class_name || '未知班級',
+          status: s.status,
+          starts_at: s.starts_at
+        }));
+        
+        setAvailableSessions(formattedSessions);
+        setLoading(false);
+        return;
+      }
+      
+      const res = await fetch(url);
       const data = await res.json();
       
       if (data.error) throw new Error(data.error);
@@ -98,7 +159,10 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
     if (role === "student") {
        fetchStudentSessions();
     } else {
+       // Teacher/Admin: load both classes for creating sessions AND existing sessions for quick entry
        fetchTeacherClasses();
+       // Also load existing sessions that teacher can enter
+       fetchStudentSessions();
     }
   }, [role, user?.student_no]);
 
@@ -132,10 +196,11 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
          .insert([{
              class_id: selectedClassId,
              title: `課堂互動 - ${new Date().toLocaleDateString()}`,
-             status: 'R',
+             status: 'open',
              qna_open: false,
              max_point: maxPoint,
-             starts_at: new Date().toISOString()
+             starts_at: new Date().toISOString(),
+             created_by: user.student_no
          }])
          .select()
          .single();
@@ -216,56 +281,98 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
 
   // Teacher/Admin rendering
   return (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-md border border-gray-200 dark:border-gray-700 max-w-2xl">
-      <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">設定報告模式</h2>
-      
-      <div className="space-y-6">
-        <div>
-           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">本堂課最高可得分</label>
-           <input
-             type="number"
-             min={1}
-             className="w-32 p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-             value={maxPoint}
-             onChange={(e) => setMaxPoint(Number(e.target.value || 15))}
-           />
-        </div>
-        <div>
-           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">上課班別</label>
-           <select 
-             className="w-full p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-             value={selectedClassId}
-             onChange={(e) => setSelectedClassId(e.target.value)}
-           >
-             {classes.map(c => (
-               <option key={c.id} value={c.id}>{c.class_name}</option>
-             ))}
-           </select>
-        </div>
+    <div className="space-y-6 w-full">
+      {/* Section 1: Join existing session - shown to teacher like student can do */}
+      {availableSessions.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-md border border-gray-200 dark:border-gray-700 w-full max-w-4xl">
+          <div className="flex justify-between items-center mb-6">
+             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">選擇進行中的課堂</h2>
+             <button 
+               onClick={fetchStudentSessions}
+               className="px-3 py-1 bg-blue-50 text-blue-600 rounded border border-blue-200 hover:bg-blue-100 text-sm font-medium"
+             >
+               重新整理
+             </button>
+          </div>
 
-        <div>
-           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">指定報告組</label>
-           <select 
-             className="w-full p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-             value={selectedGroupId}
-             onChange={(e) => setSelectedGroupId(e.target.value)}
-             disabled={groups.length === 0}
-           >
-             {groups.map(g => (
-               <option key={g.id} value={g.id}>{g.group_name}</option>
-             ))}
-           </select>
-           {groups.length === 0 && <p className="text-sm text-red-500 mt-1">此班級尚無建立任何組別</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {availableSessions.map((s) => (
+              <div 
+                key={s.id} 
+                className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer transition-colors bg-gray-50 dark:bg-gray-900 group"
+                onClick={() => router.push(`/sessions/${s.id}`)}
+              >
+                <div className="flex justify-between items-start">
+                   <div>
+                      <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200 group-hover:text-blue-600">{s.class_name}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title} ({s.id})</p>
+                   </div>
+                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded">
+                      正在進行中
+                   </span>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+                   <span>開始時間: {new Date(s.starts_at).toLocaleString()}</span>
+                   <span className="font-bold text-blue-600">點擊進入 &rarr;</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+      )}
 
-        <div className="pt-4 flex justify-end">
-           <button 
-              onClick={handleStartSession}
-              disabled={!selectedClassId || !selectedGroupId}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold disabled:bg-gray-400"
-           >
-              開始
-           </button>
+      {/* Section 2: Create new session */}
+      <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-md border border-gray-200 dark:border-gray-700 max-w-2xl">
+        <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">或建立新課堂</h2>
+        
+        <div className="space-y-6">
+          <div>
+             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">本堂課最高可得分</label>
+             <input
+               type="number"
+               min={1}
+               className="w-32 p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+               value={maxPoint}
+               onChange={(e) => setMaxPoint(Number(e.target.value || 15))}
+             />
+          </div>
+          <div>
+             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">上課班別</label>
+             <select 
+               className="w-full p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+               value={selectedClassId}
+               onChange={(e) => setSelectedClassId(e.target.value)}
+             >
+               {classes.map(c => (
+                 <option key={c.id} value={c.id}>{c.class_name}</option>
+               ))}
+             </select>
+          </div>
+
+          <div>
+             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">指定報告組</label>
+             <select 
+               className="w-full p-2 border rounded bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+               value={selectedGroupId}
+               onChange={(e) => setSelectedGroupId(e.target.value)}
+               disabled={groups.length === 0}
+             >
+               {groups.map(g => (
+                 <option key={g.id} value={g.id}>{g.group_name}</option>
+               ))}
+             </select>
+             {groups.length === 0 && <p className="text-sm text-red-500 mt-1">此班級尚無建立任何組別</p>}
+          </div>
+
+          <div className="pt-4 flex justify-end">
+             <button 
+                onClick={handleStartSession}
+                disabled={!selectedClassId || !selectedGroupId}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold disabled:bg-gray-400"
+             >
+                開始
+             </button>
+          </div>
         </div>
       </div>
     </div>
