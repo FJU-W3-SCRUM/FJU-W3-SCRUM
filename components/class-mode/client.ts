@@ -24,7 +24,7 @@ export async function createClassSession(class_id: string, title: string): Promi
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Failed to create session');
+    throw new Error(err.error || err.details || 'Failed to create session');
   }
   return res.json();
 }

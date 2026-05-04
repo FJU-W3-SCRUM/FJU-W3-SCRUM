@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import supabase from '@/lib/supabase/client';
+import { closeStaleClassModeSessions } from '@/lib/class-mode/server';
 
 export async function GET(request: Request) {
   try {
+    await closeStaleClassModeSessions();
+
     const url = new URL(request.url);
     const session_id = url.searchParams.get('session_id');
 

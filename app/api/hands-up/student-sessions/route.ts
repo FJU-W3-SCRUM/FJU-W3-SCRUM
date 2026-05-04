@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase/client';
+import { closeStaleClassModeSessions } from '@/lib/class-mode/server';
 
 export async function GET(request: Request) {
   try {
+    await closeStaleClassModeSessions();
+
     const url = new URL(request.url);
     const student_no = url.searchParams.get('student_no');
 

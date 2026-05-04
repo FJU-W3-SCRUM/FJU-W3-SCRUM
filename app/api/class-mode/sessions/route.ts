@@ -1,33 +1,12 @@
 import { NextResponse } from 'next/server';
-import supabase from '@/lib/supabase/client';
+import { closeStaleClassModeSessions, createClassModeSession, getActiveClassModeSessions } from '@/lib/class-mode/server';
 
 // GET /api/class-mode/sessions
 // Fetches all active "class mode" sessions for students to join.
 export async function GET(request: Request) {
   try {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('id, title, class_id, classes(class_name)')
-      .eq('status', 'active') // 'active' for Class Mode (matches DB)
-      .is('ends_at', null) // Active sessions
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
-    // Format the data to be more frontend-friendly
-    const sessions = data.map((s) => {
-      const classInfo = Array.isArray(s.classes)
-        ? s.classes[0]
-        : (s.classes as { class_name?: string } | null);
-
-      return {
-        id: s.id,
-        title: s.title,
-        class_name: classInfo?.class_name || '未知班級',
-      };
-    });
+    await closeStaleClassModeSessions();
+    const sessions = await getActiveClassModeSessions();
 
     return NextResponse.json({ sessions });
 
@@ -48,23 +27,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    // The column for the session's name is 'title', not 'name'.
-    // Use 'active' as the status value for class-mode sessions (matches DB values).
-    const { data: session, error: sessionError } = await supabase
-      .from('sessions')
-      .insert({ class_id, title, status: 'active' })
-      .select()
-      .single();
-
-    if (sessionError) {
-      console.error('Error creating class mode session:', sessionError);
-      return NextResponse.json({ error: 'Failed to create session', details: sessionError.message }, { status: 500 });
-    }
+    const session = await createClassModeSession(class_id, title);
 
     return NextResponse.json(session);
     
   } catch (e: any) {
     console.error('Unexpected error in POST /api/class-mode/sessions:', e);
-    return NextResponse.json({ error: 'An unexpected error occurred.', details: e.message }, { status: 500 });
+    return NextResponse.json({ error: e?.message || 'Failed to create session' }, { status: 500 });
   }
 }

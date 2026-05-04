@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import supabase from '@/lib/supabase/client';
+import { recordClassModeHeartbeat } from '@/lib/class-mode/server';
 
 export async function POST(request: Request) {
   try {
@@ -72,6 +73,8 @@ export async function POST(request: Request) {
             await supabase.from('session_seats')
                 .delete()
                 .eq('session_id', session_id);
+        } else if (session_action === 'heartbeat') {
+            await recordClassModeHeartbeat(session_id);
         }
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AuthLayout from '@/components/AuthLayout';
 import HandsUpInteractiveLayout from '@/components/hands-up/HandsUpInteractiveLayout';
@@ -25,6 +25,9 @@ export default function SessionPage() {
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
   const [presentingStatus, setPresentingStatus] = useState<'N'|'P'|'Y'>('N');
   const [sessionStatus, setSessionStatus] = useState<string>('');
+  const isEndingSessionRef = useRef(false);
+  const hasSessionEndedRef = useRef(false);
+  const skipCloseProtectionRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -51,6 +54,30 @@ export default function SessionPage() {
       router.push('/');
     }
   }, [router, session_id]);
+
+  useEffect(() => {
+    if (!canManage || !session_id || sessionStatus === 'closed') return;
+
+    const sendHeartbeat = async () => {
+      try {
+        await fetch('/api/hands-up/update-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id, session_action: 'heartbeat' }),
+          keepalive: true,
+        });
+      } catch (error) {
+        console.error('Heartbeat failed', error);
+      }
+    };
+
+    sendHeartbeat();
+    const heartbeatTimer = window.setInterval(sendHeartbeat, 15000);
+
+    return () => {
+      window.clearInterval(heartbeatTimer);
+    };
+  }, [canManage, session_id, sessionStatus]);
 
   const [initialQueue, setInitialQueue] = useState<any[]>([]);
   const [initialMembers, setInitialMembers] = useState<any[]>([]);
@@ -240,6 +267,7 @@ export default function SessionPage() {
 
   const handleEndSession = async () => {
     if (!confirm("確定要結束此課堂嗎？結束後將無法再進行互動。")) return;
+    isEndingSessionRef.current = true;
     try {
       const res = await fetch('/api/hands-up/update-session', {
         method: 'POST',
@@ -247,13 +275,62 @@ export default function SessionPage() {
         body: JSON.stringify({ session_id, session_action: 'end_session' })
       });
       if (res.ok) {
+        hasSessionEndedRef.current = true;
         alert("課堂已結束");
         router.push('/');
       }
     } catch(e) {
       console.error("Failed to end session", e);
+    } finally {
+      if (!hasSessionEndedRef.current) {
+        isEndingSessionRef.current = false;
+      }
     }
   };
+
+  useEffect(() => {
+    if (!canManage || !session_id) return;
+
+    const shouldProtectSession = () => {
+      if (hasSessionEndedRef.current || isEndingSessionRef.current) return false;
+      return sessionStatus !== 'closed';
+    };
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (skipCloseProtectionRef.current) return;
+      if (!shouldProtectSession()) return;
+      event.preventDefault();
+      event.returnValue = '是否要結束這堂課';
+    };
+
+    const onPageHide = () => {
+      if (skipCloseProtectionRef.current) return;
+      if (!shouldProtectSession()) return;
+      isEndingSessionRef.current = true;
+      const payload = JSON.stringify({ session_id, session_action: 'end_session' });
+      const blob = new Blob([payload], { type: 'application/json' });
+      navigator.sendBeacon('/api/hands-up/update-session', blob);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isRefreshShortcut = event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r');
+      if (!isRefreshShortcut) return;
+      skipCloseProtectionRef.current = true;
+      window.setTimeout(() => {
+        skipCloseProtectionRef.current = false;
+      }, 1500);
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [canManage, session_id, sessionStatus]);
 
   // Convert array members to a fast map for the HandsUpQueue
   const membersMap: Record<string, any> = {};
@@ -336,9 +413,9 @@ export default function SessionPage() {
               )}
 
               {canManage && (
-                 <button onClick={handleEndSession} className="px-4 py-2 bg-gray-800 text-white font-bold rounded-lg hover:bg-black transition-colors">
-                    🏁 結束課堂
-                 </button>
+                <button onClick={handleEndSession} className="px-4 py-2 bg-gray-800 text-white font-bold rounded-lg hover:bg-black transition-colors">
+                  🏁 結束課堂
+                </button>
               )}
            </div>
         </div>
