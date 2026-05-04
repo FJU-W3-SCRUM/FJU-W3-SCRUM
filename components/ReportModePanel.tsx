@@ -173,6 +173,10 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
   }, [selectedClassId]);
 
   const handleStartSession = async () => {
+    if (!user || !user.student_no) {
+       alert("用戶信息不完整，請重新登入");
+       return;
+    }
     if (!selectedClassId || !selectedGroupId) {
        alert("請選擇上課班級與報告組別");
        return;
@@ -199,8 +203,8 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
              status: 'open',
              qna_open: false,
              max_point: maxPoint,
-             starts_at: new Date().toISOString(),
-             created_by: user.student_no
+             starts_at: new Date().toISOString()
+             // 移除 created_by，因為資料庫欄位型別不匹配
          }])
          .select()
          .single();
