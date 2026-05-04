@@ -17,11 +17,17 @@ export async function GET(request: Request) {
     }
 
     // Format the data to be more frontend-friendly
-    const sessions = data.map(s => ({
-      id: s.id,
-      title: s.title,
-      class_name: Array.isArray(s.classes) ? s.classes[0]?.class_name : s.classes?.class_name || '未知班級',
-    }));
+    const sessions = data.map((s) => {
+      const classInfo = Array.isArray(s.classes)
+        ? s.classes[0]
+        : (s.classes as { class_name?: string } | null);
+
+      return {
+        id: s.id,
+        title: s.title,
+        class_name: classInfo?.class_name || '未知班級',
+      };
+    });
 
     return NextResponse.json({ sessions });
 

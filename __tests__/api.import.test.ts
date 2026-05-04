@@ -1,33 +1,11 @@
-<<<<<<< HEAD
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST as importHandler } from "@/app/api/import/route";
-=======
-// Mock supabase client，避免測試時真的連線 Supabase
-import { vi } from "vitest";
-// 建立可在 it 區塊自訂的 mock 行為
-const mockSelect = vi.fn();
-const mockInsert = vi.fn();
-vi.mock("@/lib/supabase/client", () => ({
-  __esModule: true,
-  default: {
-    from: () => ({
-      select: () => ({
-        eq: () => mockSelect(),
-      }),
-      insert: mockInsert,
-    }),
-  },
-}));
-import { describe, it, expect} from "vitest";
-import { POST as importHandler } from "../app/api/import/route";
->>>>>>> 4fad637ff6a5e8beb388a05c1fb296de89418efb
 import { NextRequest } from "next/server";
 
-vi.mock('@/lib/supabase/client', () => {
-  const mockInsert = vi.fn().mockReturnThis();
-  const mockSelect = vi.fn(() => ({ error: null, count: 2 }));
-  const mockEq = vi.fn(() => ({ data: [], error: null }));
+const mockEq = vi.fn();
+const mockInsert = vi.fn();
 
+vi.mock('@/lib/supabase/client', () => {
   const supabase = {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -41,14 +19,12 @@ vi.mock('@/lib/supabase/client', () => {
     select: vi.fn(() => ({
       eq: mockEq,
     })),
-    insert: vi.fn(() => ({
-      select: mockSelect,
-    })),
+    insert: mockInsert,
   }));
 
   return {
     __esModule: true,
-    default: supabase, // Add default export
+    default: supabase,
     supabase,
   };
 });
@@ -58,11 +34,18 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(() => "dummy-cookies"),
 }));
 
+beforeEach(() => {
+  mockEq.mockReset();
+  mockInsert.mockReset();
+  mockEq.mockResolvedValue({ data: [], error: null });
+  mockInsert.mockResolvedValue({ error: null });
+});
+
 describe("POST /api/import", () => {
   it("should import students successfully according to the new rules", async () => {
     // mock 查詢 class_id 下無重複學號
-    mockSelect.mockReturnValueOnce({ data: [], error: null });
-    mockInsert.mockReturnValueOnce({ error: null });
+    mockEq.mockResolvedValueOnce({ data: [], error: null });
+    mockInsert.mockResolvedValueOnce({ error: null });
     const csvPayload = `王大明,S123456\n陳小美,S654321`;
     const classId = "1";
     const payload = { csv: `name,student_no\n${csvPayload}`, class_id: classId };
@@ -103,20 +86,9 @@ describe("POST /api/import", () => {
   });
 
   it("should detect and report duplicates", async () => {
-<<<<<<< HEAD
-    // Mock that S123456 already exists in the DB for this class
-    const { supabase } = await import("@/lib/supabase/client");
-    
-    (supabase.from("accounts").select().eq as any).mockResolvedValue({
-        data: [{ student_no: "S123456" }],
-        error: null,
-    });
-
-=======
     // mock 查詢 class_id 下已有 S123456
-    mockSelect.mockReturnValueOnce({ data: [{ student_no: "S123456" }], error: null });
-    mockInsert.mockReturnValueOnce({ error: null });
->>>>>>> 4fad637ff6a5e8beb388a05c1fb296de89418efb
+    mockEq.mockResolvedValueOnce({ data: [{ student_no: "S123456" }], error: null });
+    mockInsert.mockResolvedValueOnce({ error: null });
     const csvPayload = `王大明,S123456\n陳小美,S654321`;
     const classId = "1";
     const payload = { csv: `name,student_no\n${csvPayload}`, class_id: classId };

@@ -33,13 +33,16 @@ export async function GET(request: Request) {
     // Note: In renderGrid, x = column (0-7), y = row (0-6)
     // In DB: seat_col = column, seat_row = row
     // So: seat_x should be seat_col, seat_y should be seat_row
-    const seatMap = data.map(seat => ({
+    const seatMap = data.map(seat => {
+      const account = Array.isArray(seat.accounts) ? seat.accounts[0] : seat.accounts;
+      return {
       seat_x: seat.seat_col,
       seat_y: seat.seat_row,
-      student_id: seat.accounts?.student_no || null,
-      student_name: seat.accounts?.name || '未知',
+      student_id: account?.student_no || null,
+      student_name: account?.name || '未知',
       user_id: seat.account_id, // The raw account_id from session_seats
-    }));
+      };
+    });
 
     return NextResponse.json({ seatMap });
 

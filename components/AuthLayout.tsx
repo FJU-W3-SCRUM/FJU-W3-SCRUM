@@ -8,8 +8,8 @@ const ImportCsvForm = dynamic(() => import("./ImportCsvForm"), { ssr: false });
 const GroupsPanel = dynamic(() => import("./GroupsPanel"), { ssr: false });
 const AccountsPanel = dynamic(() => import("./AccountsPanel"), { ssr: false });
 const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
-const ReportModePanel = dynamic(() => import("./ReportModePanel"), { ssr: false });
-const ClassModePanel = dynamic(() => import("./ClassModePanel"), { ssr: false });
+const ReportModePanel = dynamic(() => import("./report-mode/ReportModePanel"), { ssr: false });
+const ClassModePanel = dynamic(() => import("./class-mode/ClassModePanel"), { ssr: false });
 
 export default function AuthLayout({
   user,
@@ -114,8 +114,8 @@ export default function AuthLayout({
         {active === "import" && <ImportCsvForm />}
         {active === "groups" && <GroupsPanel />}
         {active === "class_mode" && <ClassModePanel user={user} />}
-        {active === "report_mode" && (
-          <ReportModePanel user={user as any} />
+        {active === "report_mode" && user && (
+          <ReportModePanel user={user} />
         )}
       </main>
     </div>

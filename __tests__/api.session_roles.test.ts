@@ -4,19 +4,6 @@ import { POST as rolesPost } from "../app/api/session_roles/route";
 vi.mock("@/lib/supabase/client", () => ({
   __esModule: true,
   default: {
-<<<<<<< HEAD
-    from: (table: string) => ({
-      insert: () => ({
-        select: () => ({
-          single: async () => ({
-            data: { id: 1, session_id: 1, account_id: "s001", role: "group_leader" },
-            error: null,
-          }),
-        }),
-      }),
-    }),
-  },
-=======
     from: () => ({
       insert: () => ({
         select: () => ({
@@ -28,7 +15,6 @@ vi.mock("@/lib/supabase/client", () => ({
       })
     })
   }
->>>>>>> 4fad637ff6a5e8beb388a05c1fb296de89418efb
 }));
 
 describe("session_roles API", () => {
