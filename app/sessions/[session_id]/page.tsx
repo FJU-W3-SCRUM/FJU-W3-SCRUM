@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AuthLayout from '@/components/AuthLayout';
 import HandsUpInteractiveLayout from '@/components/hands-up/HandsUpInteractiveLayout';
-import ClassOverview from '@/components/hands-up/ClassOverview';
+import ReportOverview from '@/components/hands-up/ReportOverview';
+import ClassModeOverview from '@/components/hands-up/ClassModeOverview';
 import HandsUpQueue from '@/components/hands-up/HandsUpQueue';
 import RatingModal from '@/components/hands-up/RatingModal';
 import { useHandsUpSync } from '@/hooks/useHandsUpSync';
@@ -20,6 +21,7 @@ export default function SessionPage() {
   const [currentUserAccountId, setCurrentUserAccountId] = useState('');
   
   const [className, setClassName] = useState('');
+  const [mode, setMode] = useState<'report'|'class'>('report');
   const [qnaOpen, setQnaOpen] = useState(false);
   const [presentingGroupId, setPresentingGroupId] = useState<string | null>(null);
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
@@ -394,7 +396,13 @@ export default function SessionPage() {
       }
     }}>
       <HandsUpInteractiveLayout 
-        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />}
+        overviewView={
+          mode === 'report' ? (
+            <ReportOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />
+          ) : (
+            <ClassModeOverview members={members} sessionId={session_id} currentUserAccountId={currentUserAccountId} canManage={canManage} refresh={refresh} />
+          )
+        }
         queueView={
           <HandsUpQueue 
             queue={queue} 
@@ -410,6 +418,10 @@ export default function SessionPage() {
       >
         <div className="flex justify-between items-center w-full">
            <div className="flex flex-wrap gap-4 items-center">
+             <div className="flex items-center gap-2">
+               <button onClick={() => setMode('report')} className={`px-3 py-1 rounded ${mode==='report' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>報告模式</button>
+               <button onClick={() => setMode('class')} className={`px-3 py-1 rounded ${mode==='class' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>上課模式</button>
+             </div>
              <span className={`font-bold px-3 py-1 rounded-full text-sm ${qnaOpen ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'}`}>
                 {qnaOpen ? '🟢 Q&A 開放中' : '⚪ Q&A 已關閉'}
              </span>
