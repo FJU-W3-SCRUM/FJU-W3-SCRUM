@@ -65,8 +65,8 @@ export default function ClassModePanel({ user }: { user: any }) {
       const { data: newSession, error } = await supabase.from('sessions').insert([{ class_id: Number(selectedClassId), title, status: 'active', starts_at: new Date().toISOString() }]).select().single();
       if (error) throw error;
 
-      // navigate to session
-      router.push(`/sessions/${newSession.id}`);
+      // navigate to session in class mode
+      router.push(`/sessions/${newSession.id}?mode=class`);
     } catch (e) {
       console.error('Failed to create class mode session', e);
       alert('建立課堂失敗，請查看 console');
@@ -84,7 +84,7 @@ export default function ClassModePanel({ user }: { user: any }) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {sessions.map((s: any) => (
-              <div key={s.id} className="p-3 border rounded hover:shadow cursor-pointer bg-gray-50 dark:bg-gray-900" onClick={() => router.push(`/sessions/${s.id}`)}>
+              <div key={s.id} className="p-3 border rounded hover:shadow cursor-pointer bg-gray-50 dark:bg-gray-900" onClick={() => router.push(`/sessions/${s.id}?mode=class`)}>
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="font-bold text-gray-800 dark:text-gray-100">{s.title}</div>

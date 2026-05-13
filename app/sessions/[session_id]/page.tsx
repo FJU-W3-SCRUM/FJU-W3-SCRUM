@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import AuthLayout from '@/components/AuthLayout';
 import HandsUpInteractiveLayout from '@/components/hands-up/HandsUpInteractiveLayout';
 import ReportOverview from '@/components/hands-up/ReportOverview';
@@ -13,6 +13,7 @@ import { useHandsUpSync } from '@/hooks/useHandsUpSync';
 export default function SessionPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const session_id = params.session_id as string;
   
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -29,6 +30,12 @@ export default function SessionPage() {
   const [sessionStatus, setSessionStatus] = useState<string>('');
 
   useEffect(() => {
+    // 如果 URL 有 ?mode=class，預設切換到上課模式
+    try {
+      const qMode = searchParams?.get('mode');
+      if (qMode === 'class') setMode('class');
+    } catch (e) {}
+
     try {
       const userStr = localStorage.getItem('ch_user');
       if (userStr) {
@@ -400,7 +407,14 @@ export default function SessionPage() {
           mode === 'report' ? (
             <ReportOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />
           ) : (
-            <ClassModeOverview members={members} sessionId={session_id} currentUserAccountId={currentUserAccountId} canManage={canManage} refresh={refresh} />
+            <ClassModeOverview 
+              members={members} 
+              sessionId={session_id} 
+              currentUserAccountId={currentUserAccountId} 
+              canManage={canManage} 
+              refresh={refresh}
+              selectionDisabled={(searchParams?.get('page') === '3') || (searchParams?.get('confirmed') === '1')}
+            />
           )
         }
         queueView={
