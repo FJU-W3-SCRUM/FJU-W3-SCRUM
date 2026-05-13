@@ -58,15 +58,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "帳號或密碼錯誤" }, { status: 401 });
     }
 
-    return NextResponse.json({ 
-      ok: true, 
-      user: { 
-        id: data.id,
-        student_no: data.student_no, 
-        name: data.name, 
-        role: data.role 
-      } 
-    });
+    const user = {
+      id: data.id,
+      student_no: data.student_no,
+      name: data.name,
+      role: data.role,
+    };
+
+    const res = NextResponse.json({ ok: true, user });
+    // Set cookie for client-side session persistence (20 minutes)
+    const cookieValue = encodeURIComponent(JSON.stringify(user));
+    res.headers.set('Set-Cookie', `ch_user=${cookieValue}; Path=/; Max-Age=1200; SameSite=Lax`);
+    return res;
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e.message || String(e) }, { status: 500 });
   }

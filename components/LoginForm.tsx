@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export type Account = {
   id?: string; student_no: string;
@@ -14,6 +14,8 @@ export default function LoginForm({
 }) {
   const [studentNo, setStudentNo] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaCode, setCaptchaCode] = useState("");
+  const [captchaInput, setCaptchaInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -21,6 +23,13 @@ export default function LoginForm({
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    // Validate CAPTCHA on client-side before sending
+    if (!captchaInput || captchaInput !== captchaCode) {
+      setLoading(false);
+      setError('驗證碼錯誤，請重新輸入。');
+      return;
+    }
 
     // Call server auth API which checks Supabase `accounts` table
     fetch("/api/auth/login", {
@@ -42,6 +51,16 @@ export default function LoginForm({
         setError(String(err));
       });
   }
+
+  useEffect(() => {
+    // generate 6-digit non-repeating CAPTCHA (digits)
+    const digits = Array.from({ length: 10 }, (_, i) => String(i));
+    for (let i = digits.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [digits[i], digits[j]] = [digits[j], digits[i]];
+    }
+    setCaptchaCode(digits.slice(0, 6).join(''));
+  }, []);
 
   return (
     <form
@@ -68,6 +87,28 @@ export default function LoginForm({
         className="w-full mb-3 px-3 py-2 border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="密碼（可選）"
         aria-label="password"
+      />
+
+      <label className="block text-sm mb-1 font-medium text-gray-700 dark:text-gray-300">驗證碼 (CAPTCHA)</label>
+      <div className="flex items-center gap-2 mb-2">
+        <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 rounded font-mono tracking-widest text-lg">{captchaCode}</div>
+        <button type="button" onClick={() => {
+          // regenerate
+          const digits = Array.from({ length: 10 }, (_, i) => String(i));
+          for (let i = digits.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [digits[i], digits[j]] = [digits[j], digits[i]];
+          }
+          setCaptchaCode(digits.slice(0, 6).join(''));
+        }} className="px-2 py-1 bg-blue-100 rounded text-sm">重新產生</button>
+      </div>
+      <input
+        value={captchaInput}
+        onChange={(e) => setCaptchaInput(e.target.value)}
+        className="w-full mb-3 px-3 py-2 border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="請輸入上方驗證碼"
+        aria-label="captcha"
+        required
       />
 
       {error && (

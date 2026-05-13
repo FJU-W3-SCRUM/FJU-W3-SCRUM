@@ -36,29 +36,30 @@ export default function SessionPage() {
       if (qMode === 'class') setMode('class');
     } catch (e) {}
 
-    try {
-      const userStr = localStorage.getItem('ch_user');
+     try {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + 'ch_user' + '=([^;]*)'));
+      const userStr = m ? decodeURIComponent(m[1]) : null;
       if (userStr) {
-         const user = JSON.parse(userStr);
-         setCurrentUser(user);
-         setCurrentUserAccountId(user.id);
-         const isTeacher = user.role === 'admin' || user.role === 'teacher';
-         setCanManage(isTeacher);
+        const user = JSON.parse(userStr);
+        setCurrentUser(user);
+        setCurrentUserAccountId(user.id);
+        const isTeacher = user.role === 'admin' || user.role === 'teacher';
+        setCanManage(isTeacher);
          
-         // Record session start time if teacher enters and session hasn't started
-         if (isTeacher && session_id) {
-            fetch('/api/hands-up/update-session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id, session_action: 'start_session' })
-            }).catch(err => console.error("Auto-start session failed", err));
-         }
+        // Record session start time if teacher enters and session hasn't started
+        if (isTeacher && session_id) {
+          fetch('/api/hands-up/update-session', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ session_id, session_action: 'start_session' })
+          }).catch(err => console.error("Auto-start session failed", err));
+        }
       } else {
-         router.push('/');
+        router.push('/');
       }
-    } catch(e) {
+     } catch(e) {
       router.push('/');
-    }
+     }
   }, [router, session_id]);
 
   // Warn and optionally end session when a managing user (teacher) closes the tab/window
@@ -398,7 +399,8 @@ export default function SessionPage() {
       } catch (e) {
         console.error('Failed to end session on logout', e);
       } finally {
-        localStorage.removeItem('ch_user');
+        // clear cookie on logout
+        document.cookie = `ch_user=; Path=/; Max-Age=0; SameSite=Lax`;
         router.push('/');
       }
     }}>

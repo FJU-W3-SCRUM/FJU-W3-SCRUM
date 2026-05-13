@@ -5,24 +5,41 @@ import AuthLayout from "../components/AuthLayout";
 
 export default function Home() {
   const [user, setUser] = useState<Account | null>(null);
+  // Cookie helpers
+  const setCookie = (name: string, value: string, maxAgeSec = 1200) => {
+    document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSec}; SameSite=Lax`;
+  };
 
-  // Disable auto-login: ensure any persisted user is cleared on page load
+  const getCookie = (name: string) => {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  };
+
+  const deleteCookie = (name: string) => {
+    document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+  };
+
+  // On initial load, try to load user from cookie
   useEffect(() => {
-    try {
-      localStorage.removeItem("ch_user");
-    } catch (e) {
-      // ignore
+    const stored = getCookie('ch_user');
+    if (stored) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch (e) {
+        deleteCookie('ch_user');
+      }
     }
   }, []);
 
   function onLogin(a: Account) {
-    setUser(a);
-    localStorage.setItem("ch_user", JSON.stringify(a));
+    setCookie('ch_user', JSON.stringify(a), 1200);
+    // reload so that other components pick up auth state
+    window.location.reload();
   }
 
   function onLogout() {
     setUser(null);
-    localStorage.removeItem("ch_user");
+    deleteCookie('ch_user');
   }
 
   if (!user) {
