@@ -19,11 +19,12 @@ interface Props {
   currentUserAccountId?: string;
   canManage?: boolean;
   refresh?: () => void;
+  startPolling?: () => void;
   selectionDisabled?: boolean;
 }
 import { useRouter } from 'next/navigation';
 
-export default function ClassModeOverview({ members, sessionId, currentUserAccountId, canManage, refresh }: Props) {
+export default function ClassModeOverview({ members, sessionId, currentUserAccountId, canManage, refresh, startPolling }: Props) {
   const router = useRouter();
   const { selectionDisabled } = arguments[0] as Props;
   const [flipped, setFlipped] = useState<boolean>(false);
@@ -52,7 +53,7 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
   const rightCols = [7,8,9];
 
   const { maxRow, seatMap } = useMemo(() => {
-    let maxRow = 5;
+    let maxRow = 8;
     const map: Record<string, ClassMember> = {};
 
     members.forEach(m => {
@@ -120,6 +121,8 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
       // confirmed — clear tentative and refresh after short delay
       setTentativeSeat(null);
       setTimeout(() => { if (refresh) refresh(); }, 500);
+      // trigger aggressive polling so other clients update quickly
+      try { if (startPolling) startPolling(); } catch(e) {}
       // redirect to page 3 (read-only view)
       try { router.push(`/sessions/${sessionId}?mode=class&page=3`); } catch(e) {}
       alert('座位已確認，將轉向唯讀頁面');
@@ -174,153 +177,144 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
         {/* left group */}
         <div>
           <div className="text-sm font-semibold mb-2">左側</div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${leftCols.length}, minmax(64px, 1fr))` }}>
-            {Array.from({ length: maxRow }).flatMap((_, rIdx) =>
-              leftCols.map((colIdx) => {
-                const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
-                const c = colIdx;
-                const key = `${r}:${c}`;
-                const occupant = overrides[key] || seatMap[key];
-                // hide seat R4C1 (row index 3, col index 0)
-                if (r === 3 && c === 0) {
-                  return (
-                    <div key={`L-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center" />
-                  );
-                }
-                const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
+          <div className="flex gap-2">
+            {leftCols.map((colIdx) => (
+              <div key={`L-col-${colIdx}`} className="flex flex-col gap-2 w-1/3">
+                {Array.from({ length: maxRow }).map((_, rIdx) => {
+                  const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
+                  const c = colIdx;
+                  const key = `${r}:${c}`;
+                  const occupant = overrides[key] || seatMap[key];
+                  const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
 
-                return (
-                  <div key={`L-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
-                    {occupant || isTentative ? (
-                      <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
-                        <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
-                        <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
-                        <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
-                        { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
-                        {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => onSeatClick(r, c)}
-                        disabled={!!canManage || loadingSeat === `${r}:${c}`}
-                        className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
-                        title={canManage ? '老師不可選位' : '點擊選擇座位'}
-                      >
-                        {loadingSeat === `${r}:${c}` ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
-                            <div className="text-xs text-gray-400">選位中...</div>
-                          </div>
-                        ) : (
-                          <>
+                  return (
+                    <div key={`L-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
+                      {occupant || isTentative ? (
+                        <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
+                          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
+                          <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
+                          <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
+                          { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
+                          {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onSeatClick(r, c)}
+                          disabled={!!canManage || loadingSeat === `${r}:${c}`}
+                          className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
+                          title={canManage ? '老師不可選位' : '點擊選擇座位'}
+                        >
+                          {loadingSeat === `${r}:${c}` ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
+                              <div className="text-xs text-gray-400">選位中...</div>
+                            </div>
+                          ) : (
                             <div className="text-sm text-gray-600">空座</div>
-                            <div className="text-xs text-gray-400">{`R${r+1}C${c+1}`}</div>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
 
         {/* middle group */}
         <div>
           <div className="text-sm font-semibold mb-2">中間</div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${middleCols.length}, minmax(64px, 1fr))` }}>
-            {Array.from({ length: maxRow }).flatMap((_, rIdx) =>
-              middleCols.map((colIdx) => {
-                const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
-                const c = colIdx;
-                const key = `${r}:${c}`;
-                const occupant = overrides[key] || seatMap[key];
-                const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
+          <div className="flex gap-2">
+            {middleCols.map((colIdx) => (
+              <div key={`M-col-${colIdx}`} className="flex flex-col gap-2 w-1/4">
+                {Array.from({ length: maxRow }).map((_, rIdx) => {
+                  const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
+                  const c = colIdx;
+                  const key = `${r}:${c}`;
+                  const occupant = overrides[key] || seatMap[key];
+                  const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
 
-                return (
-                  <div key={`M-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
-                    {occupant || isTentative ? (
-                      <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
-                        <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
-                        <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
-                        <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
-                        { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
-                        {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => onSeatClick(r, c)}
-                        disabled={!!canManage || loadingSeat === `${r}:${c}`}
-                        className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
-                        title={canManage ? '老師不可選位' : '點擊選擇座位'}
-                      >
-                        {loadingSeat === `${r}:${c}` ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
-                            <div className="text-xs text-gray-400">選位中...</div>
-                          </div>
-                        ) : (
-                          <>
+                  return (
+                    <div key={`M-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
+                      {occupant || isTentative ? (
+                        <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
+                          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
+                          <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
+                          <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
+                          { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
+                          {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onSeatClick(r, c)}
+                          disabled={!!canManage || loadingSeat === `${r}:${c}`}
+                          className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
+                          title={canManage ? '老師不可選位' : '點擊選擇座位'}
+                        >
+                          {loadingSeat === `${r}:${c}` ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
+                              <div className="text-xs text-gray-400">選位中...</div>
+                            </div>
+                          ) : (
                             <div className="text-sm text-gray-600">空座</div>
-                            <div className="text-xs text-gray-400">{`R${r+1}C${c+1}`}</div>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
 
         {/* right group */}
         <div>
           <div className="text-sm font-semibold mb-2">右側</div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${rightCols.length}, minmax(64px, 1fr))` }}>
-            {Array.from({ length: maxRow }).flatMap((_, rIdx) =>
-              rightCols.map((colIdx) => {
-                const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
-                const c = colIdx;
-                const key = `${r}:${c}`;
-                const occupant = overrides[key] || seatMap[key];
-                const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
+          <div className="flex gap-2">
+            {rightCols.map((colIdx) => (
+              <div key={`R-col-${colIdx}`} className="flex flex-col gap-2 w-1/3">
+                {Array.from({ length: maxRow }).map((_, rIdx) => {
+                  const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
+                  const c = colIdx;
+                  const key = `${r}:${c}`;
+                  const occupant = overrides[key] || seatMap[key];
+                  const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
 
-                return (
-                  <div key={`R-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
-                    {occupant || isTentative ? (
-                      <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
-                        <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
-                        <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
-                        <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
-                        { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
-                        {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => onSeatClick(r, c)}
-                        disabled={!!canManage || loadingSeat === `${r}:${c}`}
-                        className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
-                        title={canManage ? '老師不可選位' : '點擊選擇座位'}
-                      >
-                        {loadingSeat === `${r}:${c}` ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
-                            <div className="text-xs text-gray-400">選位中...</div>
-                          </div>
-                        ) : (
-                          <>
+                  return (
+                    <div key={`R-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
+                      {occupant || isTentative ? (
+                        <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
+                          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
+                          <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
+                          <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
+                          { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
+                          {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onSeatClick(r, c)}
+                          disabled={!!canManage || loadingSeat === `${r}:${c}`}
+                          className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
+                          title={canManage ? '老師不可選位' : '點擊選擇座位'}
+                        >
+                          {loadingSeat === `${r}:${c}` ? (
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
+                              <div className="text-xs text-gray-400">選位中...</div>
+                            </div>
+                          ) : (
                             <div className="text-sm text-gray-600">空座</div>
-                            <div className="text-xs text-gray-400">{`R${r+1}C${c+1}`}</div>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       </div>

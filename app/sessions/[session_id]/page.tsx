@@ -132,15 +132,8 @@ export default function SessionPage() {
       onDataUpdate: updateUIFromData 
   });
 
-  // 背景輪詢：每 2 秒自動刷新一次（確保跨瀏覽器同步，即使沒有操作）
-  useEffect(() => {
-    const backgroundPollingInterval = setInterval(() => {
-      console.log('[SessionPage] 🔄 背景輪詢 - 自動刷新...');
-      refresh();
-    }, 2000); // 每 2 秒
-
-    return () => clearInterval(backgroundPollingInterval);
-  }, [refresh]);
+  // Realtime subscription replaces background polling. `useHandsUpSync` sets up
+  // a Supabase Realtime channel and calls `refresh()` on relevant DB changes.
 
   useEffect(() => {
      // Check if current student is the leader of the reporting group
@@ -415,6 +408,7 @@ export default function SessionPage() {
               currentUserAccountId={currentUserAccountId} 
               canManage={canManage} 
               refresh={refresh}
+              startPolling={startPolling}
               selectionDisabled={(searchParams?.get('page') === '3') || (searchParams?.get('confirmed') === '1')}
             />
           )

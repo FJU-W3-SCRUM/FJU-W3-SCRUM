@@ -106,6 +106,12 @@ export async function GET(request: Request) {
     if (handsError) throw new Error(`handsError: ${handsError.message}`);
 
     // 8. Process Map
+      // 7b. Fetch session-specific seat selections (session_seats)
+      const { data: sessionSeats } = await supabase
+        .from('session_seats')
+        .select('account_id, seat_row, seat_col')
+        .eq('session_id', session_id);
+
     const memberMap: any = {};
     const memberByStudentNo: any = {};
 
@@ -146,6 +152,15 @@ export async function GET(request: Request) {
          memberMap[h.account_id].hand_raised = true;
          memberMap[h.account_id].hand_raise_id = h.id;
          memberMap[h.account_id].raised_at = h.raised_at;
+      }
+    });
+
+    // Apply session_seats overrides so selected seats during this session are reflected
+    sessionSeats?.forEach((s: any) => {
+      const m = memberMap[s.account_id];
+      if (m) {
+        m.seat_row = s.seat_row ?? m.seat_row;
+        m.seat_col = s.seat_col ?? m.seat_col;
       }
     });
 
