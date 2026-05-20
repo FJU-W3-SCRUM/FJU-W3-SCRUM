@@ -7,6 +7,7 @@ import HandsUpInteractiveLayout from '@/components/hands-up/HandsUpInteractiveLa
 import ClassOverview from '@/components/hands-up/ClassOverview';
 import HandsUpQueue from '@/components/hands-up/HandsUpQueue';
 import RatingModal from '@/components/hands-up/RatingModal';
+import GratitudeWall from '@/components/hands-up/GratitudeWall';
 import { useHandsUpSync } from '@/hooks/useHandsUpSync';
 
 export default function SessionPage() {
@@ -25,6 +26,7 @@ export default function SessionPage() {
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
   const [presentingStatus, setPresentingStatus] = useState<'N'|'P'|'Y'>('N');
   const [sessionStatus, setSessionStatus] = useState<string>('');
+  const [gratitudeCards, setGratitudeCards] = useState<any[]>([]);
 
   useEffect(() => {
     try {
@@ -105,6 +107,7 @@ export default function SessionPage() {
     setPresentingStatus(data.presenting_status || 'N');
     setSessionStatus(sessionStatus);
     setAvailableGroups(groups);
+    setGratitudeCards(data.gratitude_cards || []);
 
     // Group selection persistence
     if (!dbGroupId && sessionStatus === 'open' && groups.length > 0) {
@@ -362,6 +365,32 @@ export default function SessionPage() {
     }
   };
 
+  const handleSubmitGratitudeCard = async (recipientAccountId: string, message: string) => {
+    try {
+      const res = await fetch('/api/hands-up/gratitude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id,
+          sender_account_id: currentUserAccountId,
+          recipient_account_id: recipientAccountId,
+          message
+        })
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || '投稿失敗');
+      }
+
+      await refresh();
+      startPolling();
+    } catch (e) {
+      alert(`投稿失敗: ${e instanceof Error ? e.message : '未知錯誤'}`);
+      throw e;
+    }
+  };
+
   // Convert array members to a fast map for the HandsUpQueue
   const membersMap: Record<string, any> = {};
   members.forEach(m => membersMap[m.id] = m);
@@ -396,16 +425,25 @@ export default function SessionPage() {
       <HandsUpInteractiveLayout 
         overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />}
         queueView={
-          <HandsUpQueue 
-            queue={queue} 
-            membersMap={membersMap} 
-            canManage={canControlReport} 
-            qnaOpen={qnaOpen}
-            onRaiseHand={handleRaiseHand}
-            onSelectStudent={handleSelectStudentForRating}
-            showRaiseHand={!canManage && !isReportingLeader}
-            currentUserAccountId={currentUserAccountId}
-          />
+          <>
+            <HandsUpQueue 
+              queue={queue} 
+              membersMap={membersMap} 
+              canManage={canControlReport} 
+              qnaOpen={qnaOpen}
+              onRaiseHand={handleRaiseHand}
+              onSelectStudent={handleSelectStudentForRating}
+              showRaiseHand={!canManage && !isReportingLeader}
+              currentUserAccountId={currentUserAccountId}
+            />
+            <GratitudeWall
+              cards={gratitudeCards}
+              members={members.map((m) => ({ id: m.id, name: m.name }))}
+              currentUserAccountId={currentUserAccountId}
+              canPost={!canManage}
+              onSubmitCard={handleSubmitGratitudeCard}
+            />
+          </>
         }
       >
         <div className="flex justify-between items-center w-full">

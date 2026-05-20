@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 
+type GratitudeCard = {
+  id: string;
+  sender_account_id: string;
+  recipient_account_id: string;
+  message: string;
+  created_at: string;
+};
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -149,6 +157,22 @@ export async function GET(request: Request) {
       }
     });
 
+    // 9. Fetch gratitude wall cards (named only, visible to all classmates)
+    const { data: gratitudeCards, error: gratitudeError } = await supabase
+      .from('gratitude_cards')
+      .select('id, sender_account_id, recipient_account_id, message, created_at')
+      .eq('session_id', session_id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (gratitudeError) throw new Error(`gratitudeError: ${gratitudeError.message}`);
+
+    const gratitudeCardsWithNames = ((gratitudeCards || []) as GratitudeCard[]).map((card) => ({
+      ...card,
+      sender_name: memberMap[card.sender_account_id]?.name || `帳號#${card.sender_account_id}`,
+      recipient_name: memberMap[card.recipient_account_id]?.name || `帳號#${card.recipient_account_id}`
+    }));
+
     return NextResponse.json({
        session_id,
        class_id,
@@ -156,11 +180,12 @@ export async function GET(request: Request) {
        qna_open: sessionInfo.qna_open,
        session_status,
        presenting_group_id,
-       presenting_status,
-       available_groups: availableGroups || [],
-       members: Object.values(memberMap),
-       hands_up_queue: pendingHands
-    }, { status: 200 });
+        presenting_status,
+        available_groups: availableGroups || [],
+        members: Object.values(memberMap),
+        hands_up_queue: pendingHands,
+        gratitude_cards: gratitudeCardsWithNames
+     }, { status: 200 });
 
   } catch (err: any) {
     console.error("API Error in overview:", err);

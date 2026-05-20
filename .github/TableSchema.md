@@ -234,6 +234,10 @@ Notes:
 - `seat_history`：座位變動追蹤（若日後採座位登記功能）。
 	- 欄位：`id, class_id, account_id, previous_row, previous_col, new_row, new_col, changed_by, changed_at`
 
+- `gratitude_cards`：感謝牆具名投稿（US 4.1）。
+	- 欄位：`id, session_id, sender_account_id, recipient_account_id, message, created_at`
+	- 規則：不可匿名（sender/recipient 均必填）、所有同學可讀取。
+
 Rationale:
 - `group_quotas` 與 `points_transactions` 支援 UserStory 中「報告組每週配額 15 P」與「暫存／審核」流程。
 - `import_jobs` 支援 CSV 原子性匯入（全失敗或全成功）與錯誤行號回報驗收條件。
