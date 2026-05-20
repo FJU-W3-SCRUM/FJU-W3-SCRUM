@@ -28,6 +28,7 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
   const router = useRouter();
   const { selectionDisabled } = arguments[0] as Props;
   const [flipped, setFlipped] = useState<boolean>(false);
+  const [mirroredLR, setMirroredLR] = useState<boolean>(false);
   const [overrides, setOverrides] = useState<Record<string, ClassMember>>({});
   const [loadingSeat, setLoadingSeat] = useState<string | null>(null);
   const [tentativeSeat, setTentativeSeat] = useState<{row:number,col:number} | null>(null);
@@ -37,12 +38,19 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
       const saved = localStorage.getItem('classmode_orientation_flipped');
       setFlipped(saved === '1');
     } catch (e) {}
+    try {
+      const savedLR = localStorage.getItem('classmode_mirror_lr');
+      setMirroredLR(savedLR === '1');
+    } catch (e) {}
   }, []);
 
   const toggleFlip = () => {
     const next = !flipped;
     setFlipped(next);
+    // 合併左右鏡像：同時切換左右鏡像狀態並儲存
+    setMirroredLR(next);
     try { localStorage.setItem('classmode_orientation_flipped', next ? '1' : '0'); } catch(e){}
+    try { localStorage.setItem('classmode_mirror_lr', next ? '1' : '0'); } catch(e){}
   };
 
   // derive grid size
@@ -141,7 +149,7 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">🪑 上課座位表 (上課模式)</h2>
           <div className="flex items-center gap-3">
-          <button onClick={toggleFlip} className="px-3 py-1 bg-gray-100 rounded">{flipped ? '鏡像: 開 (前後翻轉)' : '鏡像: 關'}</button>
+          <button onClick={toggleFlip} className="px-3 py-1 bg-gray-100 rounded">{flipped ? '鏡像: 開 (前後+左右翻轉)' : '鏡像: 關'}</button>
           <button onClick={() => refresh && refresh()} className="px-3 py-1 bg-gray-100 rounded">重新整理座位</button>
           {tentativeSeat && (
             <div className="flex items-center gap-2 ml-3">
@@ -174,149 +182,70 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
                 <div className="text-sm text-gray-600">已確認座位 — 目前為唯讀檢視，無法再選位。</div>
               )}
             </div>
-        {/* left group */}
-        <div>
-          <div className="text-sm font-semibold mb-2">左側</div>
-          <div className="flex gap-2">
-            {leftCols.map((colIdx) => (
-              <div key={`L-col-${colIdx}`} className="flex flex-col gap-2 w-1/3">
-                {Array.from({ length: maxRow }).map((_, rIdx) => {
-                  const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
-                  const c = colIdx;
-                  const key = `${r}:${c}`;
-                  const occupant = overrides[key] || seatMap[key];
-                  const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
+        {(() => {
+          const groupDefs = ((): { key: string; label: string; cols: number[]; width: string }[] => {
+            const normal = [
+              { key: 'left', label: '左側', cols: leftCols, width: 'w-1/3' },
+              { key: 'middle', label: '中間', cols: middleCols, width: 'w-1/4' },
+              { key: 'right', label: '右側', cols: rightCols, width: 'w-1/3' },
+            ];
+            if (!mirroredLR) return normal;
+            return [
+              { key: 'left', label: '右側', cols: [...rightCols].reverse(), width: 'w-1/3' },
+              { key: 'middle', label: '中間', cols: [...middleCols].reverse(), width: 'w-1/4' },
+              { key: 'right', label: '左側', cols: [...leftCols].reverse(), width: 'w-1/3' },
+            ];
+          })();
 
-                  return (
-                    <div key={`L-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
-                      {occupant || isTentative ? (
-                        <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
-                          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
-                          <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
-                          <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
-                          { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
-                          {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => onSeatClick(r, c)}
-                          disabled={!!canManage || loadingSeat === `${r}:${c}`}
-                          className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
-                          title={canManage ? '老師不可選位' : '點擊選擇座位'}
-                        >
-                          {loadingSeat === `${r}:${c}` ? (
-                            <div className="flex flex-col items-center gap-1">
-                              <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
-                              <div className="text-xs text-gray-400">選位中...</div>
+          return groupDefs.map((g) => (
+            <div key={`group-${g.key}`}>
+              <div className="text-sm font-semibold mb-2">{g.label}</div>
+              <div className="flex gap-2">
+                {g.cols.map((colIdx) => (
+                  <div key={`${g.key}-col-${colIdx}`} className={`flex flex-col gap-2 ${g.width}`}>
+                    {Array.from({ length: maxRow }).map((_, rIdx) => {
+                      const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
+                      const c = mirroredLR ? (totalCols - 1 - colIdx) : colIdx;
+                      const key = `${r}:${c}`;
+                      const occupant = overrides[key] || seatMap[key];
+                      const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
+
+                      return (
+                        <div key={`${g.key}-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
+                          {occupant || isTentative ? (
+                            <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
+                              <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
+                              <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
+                              <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
+                              { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
+                              {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
                             </div>
                           ) : (
-                            <div className="text-sm text-gray-600">空座</div>
+                            <button
+                              onClick={() => onSeatClick(r, c)}
+                              disabled={!!canManage || loadingSeat === `${r}:${c}`}
+                              className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
+                              title={canManage ? '老師不可選位' : '點擊選擇座位'}
+                            >
+                              {loadingSeat === `${r}:${c}` ? (
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
+                                  <div className="text-xs text-gray-400">選位中...</div>
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-600">空座</div>
+                              )}
+                            </button>
                           )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* middle group */}
-        <div>
-          <div className="text-sm font-semibold mb-2">中間</div>
-          <div className="flex gap-2">
-            {middleCols.map((colIdx) => (
-              <div key={`M-col-${colIdx}`} className="flex flex-col gap-2 w-1/4">
-                {Array.from({ length: maxRow }).map((_, rIdx) => {
-                  const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
-                  const c = colIdx;
-                  const key = `${r}:${c}`;
-                  const occupant = overrides[key] || seatMap[key];
-                  const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
-
-                  return (
-                    <div key={`M-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
-                      {occupant || isTentative ? (
-                        <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
-                          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
-                          <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
-                          <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
-                          { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
-                          {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => onSeatClick(r, c)}
-                          disabled={!!canManage || loadingSeat === `${r}:${c}`}
-                          className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
-                          title={canManage ? '老師不可選位' : '點擊選擇座位'}
-                        >
-                          {loadingSeat === `${r}:${c}` ? (
-                            <div className="flex flex-col items-center gap-1">
-                              <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
-                              <div className="text-xs text-gray-400">選位中...</div>
-                            </div>
-                          ) : (
-                            <div className="text-sm text-gray-600">空座</div>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* right group */}
-        <div>
-          <div className="text-sm font-semibold mb-2">右側</div>
-          <div className="flex gap-2">
-            {rightCols.map((colIdx) => (
-              <div key={`R-col-${colIdx}`} className="flex flex-col gap-2 w-1/3">
-                {Array.from({ length: maxRow }).map((_, rIdx) => {
-                  const r = flipped ? (maxRow - 1 - rIdx) : rIdx;
-                  const c = colIdx;
-                  const key = `${r}:${c}`;
-                  const occupant = overrides[key] || seatMap[key];
-                  const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
-
-                  return (
-                    <div key={`R-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
-                      {occupant || isTentative ? (
-                        <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
-                          <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
-                          <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
-                          <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
-                          { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
-                          {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => onSeatClick(r, c)}
-                          disabled={!!canManage || loadingSeat === `${r}:${c}`}
-                          className={`relative w-full h-full border rounded p-3 bg-gray-50 ${canManage ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-50'}`}
-                          title={canManage ? '老師不可選位' : '點擊選擇座位'}
-                        >
-                          {loadingSeat === `${r}:${c}` ? (
-                            <div className="flex flex-col items-center gap-1">
-                              <div className="w-5 h-5 rounded-full bg-gray-300 animate-pulse" />
-                              <div className="text-xs text-gray-400">選位中...</div>
-                            </div>
-                          ) : (
-                            <div className="text-sm text-gray-600">空座</div>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          ));
+        })()}
       </div>
 
       {flipped && (
