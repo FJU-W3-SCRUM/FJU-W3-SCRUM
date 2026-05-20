@@ -43,6 +43,7 @@ export default function GratitudeWall({
     try {
       setSubmitting(true);
       await onSubmitCard(recipientAccountId, message.trim());
+      setRecipientAccountId('');
       setMessage('');
     } finally {
       setSubmitting(false);

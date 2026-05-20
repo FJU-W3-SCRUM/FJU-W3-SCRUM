@@ -8,12 +8,18 @@ export async function POST(request: Request) {
   try {
     const { session_id, sender_account_id, recipient_account_id, message } = await request.json();
     const trimmedMessage = typeof message === 'string' ? message.trim() : '';
+    const senderId = Number(sender_account_id);
+    const recipientId = Number(recipient_account_id);
 
     if (!session_id || !sender_account_id || !recipient_account_id || !trimmedMessage) {
       return NextResponse.json(
         { error: '投稿失敗：感謝卡必須具名，且需包含投稿者、受助者與內容。' },
         { status: 400 }
       );
+    }
+
+    if (!Number.isFinite(senderId) || !Number.isFinite(recipientId)) {
+      return NextResponse.json({ error: '投稿失敗：投稿者或受助者資料格式錯誤。' }, { status: 400 });
     }
 
     if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
@@ -37,14 +43,14 @@ export async function POST(request: Request) {
       .from('accounts')
       .select('id, name, role')
       .eq('class_id', sessionInfo.class_id)
-      .in('id', [sender_account_id, recipient_account_id]);
+      .in('id', [senderId, recipientId]);
 
     if (participantsError) {
       return NextResponse.json({ error: participantsError.message }, { status: 500 });
     }
 
-    const sender = (participants as StudentParticipant[] | null)?.find((p) => `${p.id}` === `${sender_account_id}`);
-    const recipient = (participants as StudentParticipant[] | null)?.find((p) => `${p.id}` === `${recipient_account_id}`);
+    const sender = (participants as StudentParticipant[] | null)?.find((p) => p.id === senderId);
+    const recipient = (participants as StudentParticipant[] | null)?.find((p) => p.id === recipientId);
 
     if (!sender || !recipient || sender.role !== 'student' || recipient.role !== 'student') {
       return NextResponse.json(
@@ -57,8 +63,8 @@ export async function POST(request: Request) {
       .from('gratitude_cards')
       .insert({
         session_id,
-        sender_account_id,
-        recipient_account_id,
+        sender_account_id: senderId,
+        recipient_account_id: recipientId,
         message: trimmedMessage
       })
       .select('id, session_id, sender_account_id, recipient_account_id, message, created_at')
