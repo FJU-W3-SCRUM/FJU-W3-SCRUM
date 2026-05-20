@@ -3,9 +3,9 @@
 import { FormEvent, useMemo, useState } from 'react';
 
 interface GratitudeCard {
-  id: string;
-  sender_account_id: string;
-  recipient_account_id: string;
+  id: number;
+  sender_account_id: number;
+  recipient_account_id: number;
   sender_name: string;
   recipient_name: string;
   message: string;
@@ -14,10 +14,10 @@ interface GratitudeCard {
 
 interface GratitudeWallProps {
   cards: GratitudeCard[];
-  members: Array<{ id: string | number; name: string }>;
+  members: Array<{ id: number; name: string }>;
   currentUserAccountId: string;
   canPost: boolean;
-  onSubmitCard: (recipientAccountId: string, message: string) => Promise<void>;
+  onSubmitCard: (recipientAccountId: number, message: string) => Promise<void>;
 }
 
 export default function GratitudeWall({
@@ -27,7 +27,7 @@ export default function GratitudeWall({
   canPost,
   onSubmitCard
 }: GratitudeWallProps) {
-  const [recipientAccountId, setRecipientAccountId] = useState('');
+  const [recipientAccountId, setRecipientAccountId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,12 +38,12 @@ export default function GratitudeWall({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!recipientAccountId || !message.trim()) return;
+    if (recipientAccountId === null || !message.trim()) return;
 
     try {
       setSubmitting(true);
-      await onSubmitCard(String(recipientAccountId), message.trim());
-      setRecipientAccountId('');
+      await onSubmitCard(recipientAccountId, message.trim());
+      setRecipientAccountId(null);
       setMessage('');
     } finally {
       setSubmitting(false);
@@ -60,8 +60,8 @@ export default function GratitudeWall({
       {canPost && (
         <form onSubmit={handleSubmit} className="p-3 border-b bg-gray-50 flex flex-col gap-2">
           <select
-            value={recipientAccountId}
-            onChange={(e) => setRecipientAccountId(e.target.value)}
+            value={recipientAccountId ?? ''}
+            onChange={(e) => setRecipientAccountId(e.target.value ? Number(e.target.value) : null)}
             className="border border-gray-300 rounded p-2 text-sm bg-white"
             required
           >

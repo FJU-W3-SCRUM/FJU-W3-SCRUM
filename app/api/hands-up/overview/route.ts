@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 
-type GratitudeCard = {
-  id: string;
-  sender_account_id: string;
-  recipient_account_id: string;
+type GratitudeCardRaw = {
+  id: number | string;
+  sender_account_id: number | string;
+  recipient_account_id: number | string;
   message: string;
   created_at: string;
 };
@@ -167,13 +167,19 @@ export async function GET(request: Request) {
 
     if (gratitudeError) throw new Error(`gratitudeError: ${gratitudeError.message}`);
 
-    const gratitudeCardsWithNames = ((gratitudeCards || []) as GratitudeCard[]).map((card) => {
-      const senderKey = `${card.sender_account_id}`;
-      const recipientKey = `${card.recipient_account_id}`;
-      return {
+    const gratitudeCardsWithNames = ((gratitudeCards || []) as GratitudeCardRaw[]).map((card) => {
+      const normalizedCard = {
         ...card,
-        sender_name: memberMap[senderKey]?.name || `帳號#${card.sender_account_id}`,
-        recipient_name: memberMap[recipientKey]?.name || `帳號#${card.recipient_account_id}`
+        id: Number(card.id),
+        sender_account_id: Number(card.sender_account_id),
+        recipient_account_id: Number(card.recipient_account_id)
+      };
+      const senderKey = `${normalizedCard.sender_account_id}`;
+      const recipientKey = `${normalizedCard.recipient_account_id}`;
+      return {
+        ...normalizedCard,
+        sender_name: memberMap[senderKey]?.name || `帳號#${normalizedCard.sender_account_id}`,
+        recipient_name: memberMap[recipientKey]?.name || `帳號#${normalizedCard.recipient_account_id}`
       };
     });
 

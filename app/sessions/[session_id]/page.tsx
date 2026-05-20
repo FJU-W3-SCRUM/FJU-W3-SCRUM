@@ -365,7 +365,7 @@ export default function SessionPage() {
     }
   };
 
-  const handleSubmitGratitudeCard = async (recipientAccountId: string, message: string) => {
+  const handleSubmitGratitudeCard = async (recipientAccountId: number, message: string) => {
     try {
       const res = await fetch('/api/hands-up/gratitude', {
         method: 'POST',
@@ -395,7 +395,7 @@ export default function SessionPage() {
   const membersMap: Record<string, any> = {};
   members.forEach(m => membersMap[m.id] = m);
   const gratitudeWallMembers = useMemo(
-    () => members.map((m) => ({ id: m.id, name: m.name })),
+    () => members.map((m) => ({ id: Number(m.id), name: m.name })),
     [members]
   );
 
