@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import AuthLayout from '@/components/AuthLayout';
 import HandsUpInteractiveLayout from '@/components/hands-up/HandsUpInteractiveLayout';
@@ -394,6 +394,10 @@ export default function SessionPage() {
   // Convert array members to a fast map for the HandsUpQueue
   const membersMap: Record<string, any> = {};
   members.forEach(m => membersMap[m.id] = m);
+  const gratitudeWallMembers = useMemo(
+    () => members.map((m) => ({ id: m.id, name: m.name })),
+    [members]
+  );
 
   // Derive target modal UI attributes safely
   const targetName = ratingTarget ? membersMap[ratingTarget.accountId]?.name : "";
@@ -438,7 +442,7 @@ export default function SessionPage() {
             />
             <GratitudeWall
               cards={gratitudeCards}
-              members={members.map((m) => ({ id: m.id, name: m.name }))}
+              members={gratitudeWallMembers}
               currentUserAccountId={currentUserAccountId}
               canPost={!canManage}
               onSubmitCard={handleSubmitGratitudeCard}

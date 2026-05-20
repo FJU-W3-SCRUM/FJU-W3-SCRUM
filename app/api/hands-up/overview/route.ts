@@ -167,11 +167,15 @@ export async function GET(request: Request) {
 
     if (gratitudeError) throw new Error(`gratitudeError: ${gratitudeError.message}`);
 
-    const gratitudeCardsWithNames = ((gratitudeCards || []) as GratitudeCard[]).map((card) => ({
-      ...card,
-      sender_name: memberMap[card.sender_account_id]?.name || `帳號#${card.sender_account_id}`,
-      recipient_name: memberMap[card.recipient_account_id]?.name || `帳號#${card.recipient_account_id}`
-    }));
+    const gratitudeCardsWithNames = ((gratitudeCards || []) as GratitudeCard[]).map((card) => {
+      const senderKey = `${card.sender_account_id}`;
+      const recipientKey = `${card.recipient_account_id}`;
+      return {
+        ...card,
+        sender_name: memberMap[senderKey]?.name || `帳號#${card.sender_account_id}`,
+        recipient_name: memberMap[recipientKey]?.name || `帳號#${card.recipient_account_id}`
+      };
+    });
 
     return NextResponse.json({
        session_id,
