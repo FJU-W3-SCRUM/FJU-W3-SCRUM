@@ -15,7 +15,7 @@ interface GratitudeCard {
 interface GratitudeWallProps {
   cards: GratitudeCard[];
   members: Array<{ id: number; name: string }>;
-  currentUserAccountId: string;
+  currentUserAccountId: number;
   canPost: boolean;
   onSubmitCard: (recipientAccountId: number, message: string) => Promise<void>;
 }
@@ -32,7 +32,7 @@ export default function GratitudeWall({
   const [submitting, setSubmitting] = useState(false);
 
   const recipientOptions = useMemo(
-    () => members.filter((m) => Number(m.id) !== Number(currentUserAccountId)),
+    () => members.filter((m) => Number(m.id) !== currentUserAccountId),
     [members, currentUserAccountId]
   );
 

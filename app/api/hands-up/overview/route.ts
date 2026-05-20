@@ -184,18 +184,18 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-       session_id,
-       class_id,
-       class_name,
-       qna_open: sessionInfo.qna_open,
-       session_status,
-       presenting_group_id,
-        presenting_status,
-        available_groups: availableGroups || [],
-        members: Object.values(memberMap),
-        hands_up_queue: pendingHands,
-        gratitude_cards: gratitudeCardsWithNames
-     }, { status: 200 });
+      session_id,
+      class_id,
+      class_name,
+      qna_open: sessionInfo.qna_open,
+      session_status,
+      presenting_group_id,
+      presenting_status,
+      available_groups: availableGroups || [],
+      members: Object.values(memberMap),
+      hands_up_queue: pendingHands,
+      gratitude_cards: gratitudeCardsWithNames
+    }, { status: 200 });
 
   } catch (err: any) {
     console.error("API Error in overview:", err);

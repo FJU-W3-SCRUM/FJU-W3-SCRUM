@@ -443,7 +443,7 @@ export default function SessionPage() {
             <GratitudeWall
               cards={gratitudeCards}
               members={gratitudeWallMembers}
-              currentUserAccountId={currentUserAccountId}
+              currentUserAccountId={Number(currentUserAccountId)}
               canPost={!canManage}
               onSubmitCard={handleSubmitGratitudeCard}
             />
