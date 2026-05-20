@@ -9,6 +9,7 @@ const GroupsPanel = dynamic(() => import("./GroupsPanel"), { ssr: false });
 const AccountsPanel = dynamic(() => import("./AccountsPanel"), { ssr: false });
 const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
 const ReportModePanel = dynamic(() => import("./ReportModePanel"), { ssr: false });
+const ClassModePanel = dynamic(() => import("./ClassModePanel"), { ssr: false });
 const ScoreQueryPanel = dynamic(() => import("./ScoreQueryPanel"), { ssr: false });
 
 export default function AuthLayout({
@@ -116,10 +117,7 @@ export default function AuthLayout({
         {active === "import" && <ImportCsvForm />}
         {active === "groups" && <GroupsPanel />}
         {active === "class_mode" && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow-md border border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">上課模式</h2>
-            <p className="text-gray-600 dark:text-gray-400">上課模式設定（待實作）</p>
-          </div>
+          <ClassModePanel user={user} />
         )}
         {active === "report_mode" && (
           <ReportModePanel user={user as any} />

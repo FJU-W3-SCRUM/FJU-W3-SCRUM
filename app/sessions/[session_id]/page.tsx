@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import AuthLayout from '@/components/AuthLayout';
 import HandsUpInteractiveLayout from '@/components/hands-up/HandsUpInteractiveLayout';
-import ClassOverview from '@/components/hands-up/ClassOverview';
+import ReportOverview from '@/components/hands-up/ReportOverview';
+import ClassModeOverview from '@/components/hands-up/ClassModeOverview';
 import HandsUpQueue from '@/components/hands-up/HandsUpQueue';
 import RatingModal from '@/components/hands-up/RatingModal';
 import { useHandsUpSync } from '@/hooks/useHandsUpSync';
@@ -12,6 +13,7 @@ import { useHandsUpSync } from '@/hooks/useHandsUpSync';
 export default function SessionPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const session_id = params.session_id as string;
   
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -20,6 +22,7 @@ export default function SessionPage() {
   const [currentUserAccountId, setCurrentUserAccountId] = useState('');
   
   const [className, setClassName] = useState('');
+  const [mode, setMode] = useState<'report'|'class'>('report');
   const [qnaOpen, setQnaOpen] = useState(false);
   const [presentingGroupId, setPresentingGroupId] = useState<string | null>(null);
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
@@ -27,29 +30,36 @@ export default function SessionPage() {
   const [sessionStatus, setSessionStatus] = useState<string>('');
 
   useEffect(() => {
+    // 如果 URL 有 ?mode=class，預設切換到上課模式
     try {
-      const userStr = localStorage.getItem('ch_user');
+      const qMode = searchParams?.get('mode');
+      if (qMode === 'class') setMode('class');
+    } catch (e) {}
+
+     try {
+      const m = document.cookie.match(new RegExp('(?:^|; )' + 'ch_user' + '=([^;]*)'));
+      const userStr = m ? decodeURIComponent(m[1]) : null;
       if (userStr) {
-         const user = JSON.parse(userStr);
-         setCurrentUser(user);
-         setCurrentUserAccountId(user.id);
-         const isTeacher = user.role === 'admin' || user.role === 'teacher';
-         setCanManage(isTeacher);
+        const user = JSON.parse(userStr);
+        setCurrentUser(user);
+        setCurrentUserAccountId(user.id);
+        const isTeacher = user.role === 'admin' || user.role === 'teacher';
+        setCanManage(isTeacher);
          
-         // Record session start time if teacher enters and session hasn't started
-         if (isTeacher && session_id) {
-            fetch('/api/hands-up/update-session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id, session_action: 'start_session' })
-            }).catch(err => console.error("Auto-start session failed", err));
-         }
+        // Record session start time if teacher enters and session hasn't started
+        if (isTeacher && session_id) {
+          fetch('/api/hands-up/update-session', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ session_id, session_action: 'start_session' })
+          }).catch(err => console.error("Auto-start session failed", err));
+        }
       } else {
-         router.push('/');
+        router.push('/');
       }
-    } catch(e) {
+     } catch(e) {
       router.push('/');
-    }
+     }
   }, [router, session_id]);
 
   // Warn and optionally end session when a managing user (teacher) closes the tab/window
@@ -122,15 +132,8 @@ export default function SessionPage() {
       onDataUpdate: updateUIFromData 
   });
 
-  // 背景輪詢：每 2 秒自動刷新一次（確保跨瀏覽器同步，即使沒有操作）
-  useEffect(() => {
-    const backgroundPollingInterval = setInterval(() => {
-      console.log('[SessionPage] 🔄 背景輪詢 - 自動刷新...');
-      refresh();
-    }, 2000); // 每 2 秒
-
-    return () => clearInterval(backgroundPollingInterval);
-  }, [refresh]);
+  // Realtime subscription replaces background polling. `useHandsUpSync` sets up
+  // a Supabase Realtime channel and calls `refresh()` on relevant DB changes.
 
   useEffect(() => {
      // Check if current student is the leader of the reporting group
@@ -389,12 +392,27 @@ export default function SessionPage() {
       } catch (e) {
         console.error('Failed to end session on logout', e);
       } finally {
-        localStorage.removeItem('ch_user');
+        // clear cookie on logout
+        document.cookie = `ch_user=; Path=/; Max-Age=0; SameSite=Lax`;
         router.push('/');
       }
     }}>
       <HandsUpInteractiveLayout 
-        overviewView={<ClassOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />}
+        overviewView={
+          mode === 'report' ? (
+            <ReportOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />
+          ) : (
+            <ClassModeOverview 
+              members={members} 
+              sessionId={session_id} 
+              currentUserAccountId={currentUserAccountId} 
+              canManage={canManage} 
+              refresh={refresh}
+              startPolling={startPolling}
+              selectionDisabled={(searchParams?.get('page') === '3') || (searchParams?.get('confirmed') === '1')}
+            />
+          )
+        }
         queueView={
           <HandsUpQueue 
             queue={queue} 
@@ -410,6 +428,10 @@ export default function SessionPage() {
       >
         <div className="flex justify-between items-center w-full">
            <div className="flex flex-wrap gap-4 items-center">
+             <div className="flex items-center gap-2">
+               <button onClick={() => setMode('report')} className={`px-3 py-1 rounded ${mode==='report' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>報告模式</button>
+               <button onClick={() => setMode('class')} className={`px-3 py-1 rounded ${mode==='class' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>上課模式</button>
+             </div>
              <span className={`font-bold px-3 py-1 rounded-full text-sm ${qnaOpen ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'}`}>
                 {qnaOpen ? '🟢 Q&A 開放中' : '⚪ Q&A 已關閉'}
              </span>
