@@ -1,6 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
-import { POST as importHandler } from "../app/api/import/route";
 import { NextRequest } from "next/server";
+
+// Mock supabase client used by route
+vi.mock("@/lib/supabase/client", () => ({
+  default: {
+    from: (table: string) => ({
+      select: () => ({ eq: async () => ({ data: [], error: null }) }),
+      insert: () => ({ select: async () => ({ data: [], error: null }) }),
+    }),
+  },
+}));
 
 // Mock the auth-helpers-nextjs module
 vi.mock("@supabase/auth-helpers-nextjs", () => {
@@ -38,6 +47,8 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(() => "dummy-cookies"),
 }));
 
+import { POST as importHandler } from "../app/api/import/route";
+
 describe("POST /api/import", () => {
   it("should import students successfully according to the new rules", async () => {
     const csvPayload = `王大明,S123456\n陳小美,S654321`;
@@ -74,12 +85,10 @@ describe("POST /api/import", () => {
 
   it("should detect and report duplicates", async () => {
     // Mock that S123456 already exists in the DB for this class
-    const { createRouteHandlerClient } = await import("@supabase/auth-helpers-nextjs");
-    const mockSupabase = createRouteHandlerClient({ cookies: vi.fn() });
-    
-    (mockSupabase.from("accounts").select().eq as any).mockResolvedValue({
-        data: [{ student_no: "S123456" }],
-        error: null,
+    const supabaseModule = await import("@/lib/supabase/client");
+    supabaseModule.default.from = (table: string) => ({
+      select: () => ({ eq: async () => ({ data: [{ student_no: "S123456" }], error: null }) }),
+      insert: () => ({ select: async () => ({ data: [], error: null }) }),
     });
 
     const csvPayload = `王大明,S123456\n陳小美,S654321`;
