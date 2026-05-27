@@ -149,6 +149,10 @@ export default function GroupEditPage() {
     // If already leader, do nothing (clicking same member)
     if (isLeader) return;
     
+    const selectedMember = currentMembers.find(m => m.id === memberId);
+    if (!selectedMember) return;
+    if (!window.confirm(`確定要將 ${selectedMember.student_no} ${selectedMember.name} 指派為組長嗎？`)) return;
+    
     // Find the current leader and remove the leader status
     const currentLeader = currentMembers.find(m => m.is_leader);
     if (currentLeader) {
