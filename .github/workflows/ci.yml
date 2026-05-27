@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '18'
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       - name: Run unit tests (Vitest)
         run: npm run test
 
@@ -31,7 +31,7 @@ jobs:
           node-version: '18'
       - name: Install dependencies
         run: |
-          npm ci
+          npm install
           npx playwright install --with-deps
       - name: Run Playwright E2E
         run: npm run test:e2e
