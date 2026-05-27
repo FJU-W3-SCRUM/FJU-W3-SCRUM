@@ -239,16 +239,41 @@ async function enrichScoreDetails(
     // 檢查是否為聚合模式（全部課堂）
     const isAggregated = results.some((r) => r.session_id === "aggregated");
 
+    let sessionIds: number[] = [];
     if (isAggregated) {
-      // 聚合模式：無法顯示詳細評分歷史
-      // 因為評分是跨多個課堂的，無法追溯每次評分的詳情
-      return;
-    }
+      const classIds = Array.from(
+        new Set(
+          results
+            .map((r) => parseInt(r.class_id, 10))
+            .filter((id) => !Number.isNaN(id)),
+        ),
+      );
 
-    // 提取所有涉及的課堂 ID
-    const sessionIds = Array.from(
-      new Set(results.map((r) => parseInt(r.session_id))),
-    );
+      if (classIds.length === 0) return;
+
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from("sessions")
+        .select("id")
+        .in("class_id", classIds);
+
+      if (sessionsError) {
+        console.warn("Failed to fetch sessions for aggregated details:", sessionsError);
+        return;
+      }
+
+      sessionIds = (sessionsData || [])
+        .map((session: any) => Number(session.id))
+        .filter((id) => !Number.isNaN(id));
+    } else {
+      // 提取所有涉及的課堂 ID
+      sessionIds = Array.from(
+        new Set(
+          results
+            .map((r) => parseInt(r.session_id, 10))
+            .filter((id) => !Number.isNaN(id)),
+        ),
+      );
+    }
 
     if (sessionIds.length === 0) return;
 
@@ -335,7 +360,7 @@ async function enrichScoreDetails(
     // 獲取 answers 映射（answer_id -> account_id）
     const { data: answersData, error: answersError } = await supabase
       .from("answers")
-      .select("id, account_id")
+      .select("id, session_id, account_id")
       .in("session_id", sessionIds);
 
     if (answersError) {
@@ -343,20 +368,26 @@ async function enrichScoreDetails(
       return;
     }
 
-    const answerMap = new Map<number, number>();
+    const answerMap = new Map<number, { accountId: number; sessionId: number }>();
     (answersData || []).forEach((a: any) => {
-      answerMap.set(a.id, a.account_id);
+      answerMap.set(a.id, {
+        accountId: a.account_id,
+        sessionId: a.session_id,
+      });
     });
 
     // 為每個評分找到對應的學生，並補充詳情
     (ratingsData || []).forEach((rating: any) => {
-      const studentId = answerMap.get(rating.answer_id);
-      if (!studentId) return;
+      const answer = answerMap.get(rating.answer_id);
+      if (!answer) return;
 
-      const resultKey = `${rating.session_id}-${studentId}`;
-      const result = results.find(
-        (r) => `${r.session_id}-${r.account_id}` === resultKey,
-      );
+      const result = isAggregated
+        ? results.find((r) => r.account_id === String(answer.accountId))
+        : results.find(
+            (r) =>
+              `${r.session_id}-${r.account_id}` ===
+              `${answer.sessionId}-${answer.accountId}`,
+          );
 
       if (result) {
         const raterId = String(rating.rater_account_id);
