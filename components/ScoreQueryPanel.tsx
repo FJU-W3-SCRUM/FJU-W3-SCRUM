@@ -77,6 +77,18 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
     }
   }, [shouldAutoSearch]);
 
+  // Auto search when session is auto-selected
+  useEffect(() => {
+    if (
+      selectedSessionId &&
+      selectedClassId &&
+      !loading &&
+      results.length === 0
+    ) {
+      handleSearchAuto();
+    }
+  }, [selectedSessionId]);
+
   const loadClasses = async () => {
     try {
       setLoading(true);
@@ -146,7 +158,9 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
         );
       });
       setSessions(sortedSessions);
-      setSelectedSessionId(""); // Reset session selection
+
+      // 預設保持 --全部課堂--，不自動選擇課堂
+      setSelectedSessionId("");
     } catch (err: any) {
       console.error("Error loading sessions:", err);
       // Don't show error for sessions, just proceed
@@ -526,7 +540,8 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                       <table className="w-full">
                         <thead>
                           <tr className="bg-gray-100 dark:bg-gray-700">
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            {/* Desktop: Show all columns */}
+                            <th className="hidden md:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
                               學號
                             </th>
                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -534,18 +549,18 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                             </th>
                             {/* 只在有組別信息時顯示 */}
                             {group.students.some((s) => s.group_name) && (
-                              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
+                              <th className="hidden lg:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
                                 組別
                               </th>
                             )}
                             <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              舉手次數
+                              舉手
                             </th>
                             <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              被點次數
+                              被點
                             </th>
                             <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
-                              評點分數
+                              評分
                             </th>
                             <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">
                               詳情
@@ -563,7 +578,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                 key={`${student.account_id}-${idx}`}
                               >
                                 <tr className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
+                                  <td className="hidden md:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
                                     {student.student_no}
                                   </td>
                                   <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
@@ -577,7 +592,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                     </div>
                                   </td>
                                   {group.students.some((s) => s.group_name) && (
-                                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                    <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                                       {student.group_name || "—"}
                                     </td>
                                   )}
@@ -590,14 +605,14 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                   <td className="px-4 py-3 text-sm text-center font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
                                     ⭐ {student.total_score}
                                   </td>
-                                  <td className="px-4 py-3 text-center">
+                                  <td className="px-4 py-3 text-center min-w-fit">
                                     {student.score_details &&
                                       student.score_details.length > 0 && (
                                         <button
                                           onClick={() =>
                                             toggleScoreDetails(detailsKey)
                                           }
-                                          className="px-3 py-1 text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition"
+                                          className="px-3 py-1 text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition whitespace-nowrap"
                                         >
                                           {isExpanded ? "▼ 隱藏" : "▶ 顯示"}
                                         </button>

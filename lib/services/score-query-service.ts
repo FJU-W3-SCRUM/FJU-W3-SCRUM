@@ -234,6 +234,15 @@ async function enrichScoreDetails(
   results: StudentScoreQueryResult[],
 ): Promise<void> {
   try {
+    // 檢查是否為聚合模式（全部課堂）
+    const isAggregated = results.some((r) => r.session_id === "aggregated");
+
+    if (isAggregated) {
+      // 聚合模式：無法顯示詳細評分歷史
+      // 因為評分是跨多個課堂的，無法追溯每次評分的詳情
+      return;
+    }
+
     // 提取所有涉及的課堂 ID
     const sessionIds = Array.from(
       new Set(results.map((r) => parseInt(r.session_id))),
