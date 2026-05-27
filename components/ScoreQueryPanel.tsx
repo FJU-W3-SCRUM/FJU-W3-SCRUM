@@ -230,6 +230,26 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
     setExpandedScoreDetails(newSet);
   };
 
+  const handleExportExcel = () => {
+    const blob = buildExcelWorkbook(results);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const className =
+      classes.find((cls) => cls.id === selectedClassId)?.name ||
+      results[0]?.class_name ||
+      "未選班別";
+    const sessionName =
+      selectedSessionId && sessions.find((s) => s.id === selectedSessionId)
+        ? sessions.find((s) => s.id === selectedSessionId)!.title
+        : "全部課堂";
+    link.href = url;
+    link.download = `${safeFilename(`分數報表_${className}_${sessionName}`)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   // 合併 loading 和 isSearching 狀態來決定是否顯示查詢中提示
   const isLoading = loading || isSearching;
 
@@ -376,6 +396,16 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                 "🔍 查詢"
               )}
             </button>
+            {role === "admin" && (
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={results.length === 0 || isSearching}
+                className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition shadow-md hover:shadow-lg"
+              >
+                下載 Excel
+              </button>
+            )}
           </div>
         </form>
 
@@ -704,4 +734,319 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
       </div>
     </div>
   );
+}
+
+function buildExcelWorkbook(results: StudentScoreQueryResult[]): Blob {
+  const listRows = results.map((result) => [
+    result.class_name,
+    result.session_title,
+    result.group_name || "",
+    result.group_leader ? "是" : "否",
+    result.student_no,
+    result.name,
+    result.raise_count,
+    result.answer_count,
+    result.total_score,
+  ]);
+
+  const historyRows = results.flatMap((result) =>
+    (result.score_details || []).map((detail) => [
+      result.class_name,
+      detail.session_title || result.session_title,
+      result.group_name || "",
+      result.student_no,
+      result.name,
+      detail.rater_name || "",
+      detail.rater_label || "",
+      detail.star,
+      formatExportDate(detail.created_at),
+    ]),
+  );
+
+  const files: ZipFile[] = [
+    {
+      path: "[Content_Types].xml",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`,
+    },
+    {
+      path: "_rels/.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+    },
+    {
+      path: "xl/workbook.xml",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="目前列表" sheetId="1" r:id="rId1"/>
+    <sheet name="評分歷史" sheetId="2" r:id="rId2"/>
+  </sheets>
+</workbook>`,
+    },
+    {
+      path: "xl/_rels/workbook.xml.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+</Relationships>`,
+    },
+    {
+      path: "xl/worksheets/sheet1.xml",
+      content: buildWorksheetXml([
+        [
+          "班別",
+          "課堂",
+          "組別",
+          "是否組長",
+          "學號",
+          "姓名",
+          "舉手次數",
+          "被點次數",
+          "總評分",
+        ],
+        ...listRows,
+      ]),
+    },
+    {
+      path: "xl/worksheets/sheet2.xml",
+      content: buildWorksheetXml([
+        [
+          "班別",
+          "課堂",
+          "組別",
+          "學號",
+          "姓名",
+          "給分者",
+          "給分身分",
+          "分數",
+          "給分時間",
+        ],
+        ...historyRows,
+      ]),
+    },
+  ];
+
+  const xlsxBytes = buildZip(files);
+  const xlsxBuffer = xlsxBytes.buffer.slice(
+    xlsxBytes.byteOffset,
+    xlsxBytes.byteOffset + xlsxBytes.byteLength,
+  ) as ArrayBuffer;
+
+  return new Blob([xlsxBuffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
+function buildWorksheetXml(rows: Array<Array<string | number>>): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    ${rows
+      .map(
+        (row, rowIndex) =>
+          `<row r="${rowIndex + 1}">${row
+            .map((cell, colIndex) => buildCellXml(cell, rowIndex + 1, colIndex))
+            .join("")}</row>`,
+      )
+      .join("")}
+  </sheetData>
+</worksheet>`;
+}
+
+function buildCellXml(
+  value: string | number,
+  rowNumber: number,
+  colIndex: number,
+): string {
+  const cellRef = `${columnName(colIndex)}${rowNumber}`;
+  if (typeof value === "number") {
+    return `<c r="${cellRef}"><v>${value}</v></c>`;
+  }
+
+  return `<c r="${cellRef}" t="inlineStr"><is><t>${escapeXml(
+    value,
+  )}</t></is></c>`;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function safeFilename(value: string): string {
+  return value.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, " ").trim();
+}
+
+function columnName(index: number): string {
+  let name = "";
+  let n = index + 1;
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    n = Math.floor((n - 1) / 26);
+  }
+  return name;
+}
+
+interface ZipFile {
+  path: string;
+  content: string;
+}
+
+function buildZip(files: ZipFile[]): Uint8Array {
+  const encoder = new TextEncoder();
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const nameBytes = encoder.encode(file.path);
+    const contentBytes = encoder.encode(file.content);
+    const crc = crc32(contentBytes);
+    const localHeader = createZipHeader(0x04034b50, {
+      nameBytes,
+      crc,
+      size: contentBytes.length,
+      offset,
+    });
+
+    localParts.push(localHeader, nameBytes, contentBytes);
+
+    const centralHeader = createZipHeader(0x02014b50, {
+      nameBytes,
+      crc,
+      size: contentBytes.length,
+      offset,
+      central: true,
+    });
+    centralParts.push(centralHeader, nameBytes);
+    offset += localHeader.length + nameBytes.length + contentBytes.length;
+  });
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const endRecord = createEndOfCentralDirectory(
+    files.length,
+    centralSize,
+    centralOffset,
+  );
+
+  return concatUint8Arrays([...localParts, ...centralParts, endRecord]);
+}
+
+function createZipHeader(
+  signature: number,
+  options: {
+    nameBytes: Uint8Array;
+    crc: number;
+    size: number;
+    offset: number;
+    central?: boolean;
+  },
+): Uint8Array {
+  const headerLength = options.central ? 46 : 30;
+  const header = new Uint8Array(headerLength);
+  const view = new DataView(header.buffer);
+  const { dosTime, dosDate } = getDosDateTime();
+
+  view.setUint32(0, signature, true);
+  if (options.central) {
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 20, true);
+    view.setUint16(8, 0x0800, true);
+    view.setUint16(10, 0, true);
+    view.setUint16(12, dosTime, true);
+    view.setUint16(14, dosDate, true);
+    view.setUint32(16, options.crc, true);
+    view.setUint32(20, options.size, true);
+    view.setUint32(24, options.size, true);
+    view.setUint16(28, options.nameBytes.length, true);
+    view.setUint32(42, options.offset, true);
+  } else {
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 0x0800, true);
+    view.setUint16(8, 0, true);
+    view.setUint16(10, dosTime, true);
+    view.setUint16(12, dosDate, true);
+    view.setUint32(14, options.crc, true);
+    view.setUint32(18, options.size, true);
+    view.setUint32(22, options.size, true);
+    view.setUint16(26, options.nameBytes.length, true);
+  }
+
+  return header;
+}
+
+function createEndOfCentralDirectory(
+  fileCount: number,
+  centralSize: number,
+  centralOffset: number,
+): Uint8Array {
+  const record = new Uint8Array(22);
+  const view = new DataView(record.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(8, fileCount, true);
+  view.setUint16(10, fileCount, true);
+  view.setUint32(12, centralSize, true);
+  view.setUint32(16, centralOffset, true);
+  return record;
+}
+
+function getDosDateTime(): { dosTime: number; dosDate: number } {
+  const now = new Date();
+  const dosTime =
+    (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate =
+    ((now.getFullYear() - 1980) << 9) |
+    ((now.getMonth() + 1) << 5) |
+    now.getDate();
+  return { dosTime, dosDate };
+}
+
+function concatUint8Arrays(parts: Uint8Array[]): Uint8Array {
+  const totalLength = parts.reduce((sum, part) => sum + part.length, 0);
+  const output = new Uint8Array(totalLength);
+  let offset = 0;
+  parts.forEach((part) => {
+    output.set(part, offset);
+    offset += part.length;
+  });
+  return output;
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc ^= bytes[i];
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function formatExportDate(value?: string): string {
+  if (!value) return "";
+  return new Date(value).toLocaleString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

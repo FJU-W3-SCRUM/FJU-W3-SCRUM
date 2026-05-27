@@ -13,6 +13,9 @@ import { SupabaseClient } from "@supabase/supabase-js";
  * 評分詳情（包含給分人信息）
  */
 export interface ScoreDetail {
+  session_id?: string;
+  session_title?: string;
+  session_date?: string;
   star: number;
   rater_name?: string;
   rater_role: "teacher" | "group_leader" | "group_member"; // 老師、組長或組員
@@ -240,6 +243,10 @@ async function enrichScoreDetails(
     const isAggregated = results.some((r) => r.session_id === "aggregated");
 
     let sessionIds: number[] = [];
+    const sessionInfoMap = new Map<
+      string,
+      { title: string; createdAt?: string }
+    >();
     if (isAggregated) {
       const classIds = Array.from(
         new Set(
@@ -253,7 +260,7 @@ async function enrichScoreDetails(
 
       const { data: sessionsData, error: sessionsError } = await supabase
         .from("sessions")
-        .select("id")
+        .select("id, title, created_at")
         .in("class_id", classIds);
 
       if (sessionsError) {
@@ -262,7 +269,13 @@ async function enrichScoreDetails(
       }
 
       sessionIds = (sessionsData || [])
-        .map((session: any) => Number(session.id))
+        .map((session: any) => {
+          sessionInfoMap.set(String(session.id), {
+            title: session.title || "",
+            createdAt: session.created_at || undefined,
+          });
+          return Number(session.id);
+        })
         .filter((id) => !Number.isNaN(id));
     } else {
       // 提取所有涉及的課堂 ID
@@ -273,6 +286,12 @@ async function enrichScoreDetails(
             .filter((id) => !Number.isNaN(id)),
         ),
       );
+      results.forEach((result) => {
+        sessionInfoMap.set(result.session_id, {
+          title: result.session_title,
+          createdAt: result.session_date,
+        });
+      });
     }
 
     if (sessionIds.length === 0) return;
@@ -427,6 +446,9 @@ async function enrichScoreDetails(
         }
 
         result.score_details.push({
+          session_id: String(answer.sessionId),
+          session_title: sessionInfoMap.get(String(answer.sessionId))?.title,
+          session_date: sessionInfoMap.get(String(answer.sessionId))?.createdAt,
           star: rating.star || 0,
           rater_name: raterName,
           rater_role: raterRole,
