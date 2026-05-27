@@ -37,13 +37,15 @@ interface SessionOption {
 export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
   const role = user?.role?.toLowerCase() || "student";
   const userId = user?.id;
+  const defaultKeyword =
+    role === "student" ? user?.student_no || user?.name || "" : "";
 
   const [loading, setLoading] = useState(true); // 頁面初始載入
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
-  const [keyword, setKeyword] = useState<string>("");
+  const [keyword, setKeyword] = useState<string>(defaultKeyword);
   const [results, setResults] = useState<StudentScoreQueryResult[]>([]);
   const [isSearching, setIsSearching] = useState(false); // 查詢中的 loading
   const [error, setError] = useState<string>("");
@@ -219,7 +221,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
   };
 
   const handleReset = () => {
-    setKeyword("");
+    setKeyword(defaultKeyword);
     setResults([]);
     setError("");
     setSelectedSessionId("");
