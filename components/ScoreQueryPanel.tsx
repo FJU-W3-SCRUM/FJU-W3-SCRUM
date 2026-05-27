@@ -11,7 +11,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { StudentScoreQueryResult } from "@/lib/services/score-query-service";
+import type {
+  ScoreDetail,
+  StudentScoreQueryResult,
+} from "@/lib/services/score-query-service";
 
 interface ScoreQueryPanelProps {
   user: {
@@ -34,6 +37,11 @@ interface SessionOption {
   created_at: string;
 }
 
+interface SelectedRating {
+  student: StudentScoreQueryResult;
+  detail: ScoreDetail;
+}
+
 export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
   const role = user?.role?.toLowerCase() || "student";
   const userId = user?.id;
@@ -53,6 +61,15 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
     new Set(),
   );
   const [shouldAutoSearch, setShouldAutoSearch] = useState(false); // 標記是否需要自動查詢
+  const [editingRating, setEditingRating] = useState<SelectedRating | null>(
+    null,
+  );
+  const [deletingRating, setDeletingRating] = useState<SelectedRating | null>(
+    null,
+  );
+  const [selectedStars, setSelectedStars] = useState(0);
+  const [ratingActionLoading, setRatingActionLoading] = useState(false);
+  const [ratingActionError, setRatingActionError] = useState("");
 
   // Load available classes for user
   useEffect(() => {
@@ -248,6 +265,121 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const openEditRating = (
+    student: StudentScoreQueryResult,
+    detail: ScoreDetail,
+  ) => {
+    setRatingActionError("");
+    setSelectedStars(detail.star);
+    setEditingRating({ student, detail });
+  };
+
+  const openDeleteRating = (
+    student: StudentScoreQueryResult,
+    detail: ScoreDetail,
+  ) => {
+    setRatingActionError("");
+    setDeletingRating({ student, detail });
+  };
+
+  const closeRatingModal = () => {
+    setEditingRating(null);
+    setDeletingRating(null);
+    setRatingActionError("");
+    setSelectedStars(0);
+  };
+
+  const handleUpdateRating = async () => {
+    if (!editingRating?.detail.rating_id) return;
+
+    try {
+      setRatingActionLoading(true);
+      setRatingActionError("");
+
+      const response = await fetch("/api/scores/ratings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ratingId: editingRating.detail.rating_id,
+          star: selectedStars,
+          userRole: role,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "更新評分失敗");
+      }
+
+      const delta = selectedStars - editingRating.detail.star;
+      setResults((current) =>
+        current.map((student) =>
+          student.account_id === editingRating.student.account_id &&
+          student.session_id === editingRating.student.session_id
+            ? {
+                ...student,
+                total_score: student.total_score + delta,
+                score_details: student.score_details?.map((detail) =>
+                  detail.rating_id === editingRating.detail.rating_id
+                    ? { ...detail, star: selectedStars }
+                    : detail,
+                ),
+              }
+            : student,
+        ),
+      );
+      closeRatingModal();
+    } catch (error: any) {
+      setRatingActionError(error.message || "更新評分失敗");
+    } finally {
+      setRatingActionLoading(false);
+    }
+  };
+
+  const handleDeleteRating = async () => {
+    if (!deletingRating?.detail.rating_id) return;
+
+    try {
+      setRatingActionLoading(true);
+      setRatingActionError("");
+
+      const response = await fetch("/api/scores/ratings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ratingId: deletingRating.detail.rating_id,
+          userRole: role,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "刪除評分失敗");
+      }
+
+      setResults((current) =>
+        current.map((student) =>
+          student.account_id === deletingRating.student.account_id &&
+          student.session_id === deletingRating.student.session_id
+            ? {
+                ...student,
+                total_score: student.total_score - deletingRating.detail.star,
+                score_details: student.score_details?.filter(
+                  (detail) =>
+                    detail.rating_id !== deletingRating.detail.rating_id,
+                ),
+              }
+            : student,
+        ),
+      );
+      closeRatingModal();
+    } catch (error: any) {
+      setRatingActionError(error.message || "刪除評分失敗");
+    } finally {
+      setRatingActionLoading(false);
+    }
   };
 
   // 合併 loading 和 isSearching 狀態來決定是否顯示查詢中提示
@@ -662,9 +794,9 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                               (detail, detailIdx) => (
                                                 <div
                                                   key={detailIdx}
-                                                  className="flex items-center justify-between bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700"
+                                                  className="flex flex-col gap-3 bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between"
                                                 >
-                                                  <div>
+                                                  <div className="min-w-0">
                                                     <div className="flex items-center gap-2 mb-1">
                                                       <span className="font-semibold text-gray-900 dark:text-gray-100">
                                                         {detail.rater_name}
@@ -708,9 +840,44 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                                       </p>
                                                     )}
                                                   </div>
-                                                  <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                                                    ⭐ {detail.star}
-                                                  </span>
+                                                  <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                                    <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                                                      ⭐ {detail.star}
+                                                    </span>
+                                                    {role === "admin" &&
+                                                      detail.rating_id && (
+                                                        <div className="flex items-center gap-1.5">
+                                                          <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                              openEditRating(
+                                                                student,
+                                                                detail,
+                                                              )
+                                                            }
+                                                            aria-label="編輯評分"
+                                                            title="編輯評分"
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-sky-200 bg-white text-sky-700 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-sky-50 hover:shadow focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-sky-800 dark:bg-gray-900 dark:text-sky-300 dark:hover:bg-sky-900/30"
+                                                          >
+                                                            <PencilIcon />
+                                                          </button>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                              openDeleteRating(
+                                                                student,
+                                                                detail,
+                                                              )
+                                                            }
+                                                            aria-label="刪除評分"
+                                                            title="刪除評分"
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-700 shadow-sm transition hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-50 hover:shadow focus:outline-none focus:ring-2 focus:ring-rose-500 dark:border-rose-800 dark:bg-gray-900 dark:text-rose-300 dark:hover:bg-rose-900/30"
+                                                          >
+                                                            <TrashIcon />
+                                                          </button>
+                                                        </div>
+                                                      )}
+                                                  </div>
                                                 </div>
                                               ),
                                             )}
@@ -732,7 +899,210 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
           </>
         )}
       </div>
+      {editingRating && (
+        <RatingEditDialog
+          studentName={editingRating.student.name}
+          raterName={editingRating.detail.rater_name || ""}
+          selectedStars={selectedStars}
+          loading={ratingActionLoading}
+          error={ratingActionError}
+          onSelectStars={setSelectedStars}
+          onCancel={closeRatingModal}
+          onConfirm={handleUpdateRating}
+        />
+      )}
+      {deletingRating && (
+        <RatingDeleteDialog
+          studentName={deletingRating.student.name}
+          raterName={deletingRating.detail.rater_name || ""}
+          star={deletingRating.detail.star}
+          loading={ratingActionLoading}
+          error={ratingActionError}
+          onCancel={closeRatingModal}
+          onConfirm={handleDeleteRating}
+        />
+      )}
     </div>
+  );
+}
+
+function RatingEditDialog({
+  studentName,
+  raterName,
+  selectedStars,
+  loading,
+  error,
+  onSelectStars,
+  onCancel,
+  onConfirm,
+}: {
+  studentName: string;
+  raterName: string;
+  selectedStars: number;
+  loading: boolean;
+  error: string;
+  onSelectStars: (stars: number) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
+      <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl dark:bg-gray-800">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            編輯 {studentName} 評分
+          </h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            給分者：{raterName || "未知給分者"}
+          </p>
+        </div>
+
+        <div className="flex justify-center gap-1 py-3">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => onSelectStars(star)}
+              className={`h-11 w-11 rounded-md text-3xl transition focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                star <= selectedStars
+                  ? "text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                  : "text-gray-300 hover:bg-gray-100 dark:text-gray-600 dark:hover:bg-gray-700"
+              }`}
+              aria-label={`${star} 星`}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading || selectedStars < 1}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? "儲存中..." : "儲存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RatingDeleteDialog({
+  studentName,
+  raterName,
+  star,
+  loading,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  studentName: string;
+  raterName: string;
+  star: number;
+  loading: boolean;
+  error: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-6">
+      <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl dark:bg-gray-800">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            刪除評分
+          </h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            確定要刪除 {studentName} 這筆 {star} 星評分嗎？
+          </p>
+          {raterName && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              給分者：{raterName}
+            </p>
+          )}
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+          >
+            {loading ? "刪除中..." : "刪除"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
   );
 }
 

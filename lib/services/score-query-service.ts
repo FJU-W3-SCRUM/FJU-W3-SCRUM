@@ -13,6 +13,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
  * 評分詳情（包含給分人信息）
  */
 export interface ScoreDetail {
+  rating_id?: string;
   session_id?: string;
   session_title?: string;
   session_date?: string;
@@ -446,6 +447,7 @@ async function enrichScoreDetails(
         }
 
         result.score_details.push({
+          rating_id: String(rating.id),
           session_id: String(answer.sessionId),
           session_title: sessionInfoMap.get(String(answer.sessionId))?.title,
           session_date: sessionInfoMap.get(String(answer.sessionId))?.createdAt,
