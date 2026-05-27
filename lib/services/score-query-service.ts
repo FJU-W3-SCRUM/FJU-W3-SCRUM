@@ -330,12 +330,12 @@ async function enrichScoreDetails(
       if (result) {
         const raterId = String(rating.rater_account_id);
         const raterName = raterNameMap.get(raterId) || "未知";
-        
+
         // 改進邏輯：優先判斷是否為真正的老師
         const raterAccountRole = raterRoleMap.get(raterId) || "";
         const isTeacher = raterAccountRole === "teacher";
         const isGroupLeader = raterLeaderMap.get(raterId) || false;
-        
+
         // 優先級：account.role === "teacher" → 標記為老師；否則如果是組長 → 標記為組長
         const raterRole: "teacher" | "group_leader" = isTeacher
           ? "teacher"
