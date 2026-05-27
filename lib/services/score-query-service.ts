@@ -221,7 +221,7 @@ export async function queryScores(
       await enrichScoreDetails(supabase, results);
     }
 
-    return results;
+    return sortScoreResults(results);
   } catch (error) {
     console.error("Error in queryScores:", error);
     throw error;
@@ -436,10 +436,54 @@ async function enrichScoreDetails(
         });
       }
     });
+
+    results.forEach((result) => {
+      result.score_details?.sort(compareScoreDetailsDesc);
+    });
   } catch (error) {
     console.warn("Error enriching score details:", error);
     // 不拋出錯誤，因為詳情是可選的
   }
+}
+
+function sortScoreResults(
+  results: StudentScoreQueryResult[],
+): StudentScoreQueryResult[] {
+  return [...results].sort((a, b) => {
+    const aHasGroup = Boolean(a.group_name?.trim());
+    const bHasGroup = Boolean(b.group_name?.trim());
+
+    if (aHasGroup !== bHasGroup) return aHasGroup ? -1 : 1;
+
+    const classCompare = a.class_id.localeCompare(b.class_id, undefined, {
+      numeric: true,
+    });
+    if (classCompare !== 0) return classCompare;
+
+    const groupCompare = (a.group_name || "").localeCompare(
+      b.group_name || "",
+      undefined,
+      { numeric: true },
+    );
+    if (groupCompare !== 0) return groupCompare;
+
+    if (a.group_leader !== b.group_leader) return a.group_leader ? -1 : 1;
+
+    const studentCompare = a.student_no.localeCompare(b.student_no, undefined, {
+      numeric: true,
+    });
+    if (studentCompare !== 0) return studentCompare;
+
+    return a.session_id.localeCompare(b.session_id, undefined, {
+      numeric: true,
+    });
+  });
+}
+
+function compareScoreDetailsDesc(a: ScoreDetail, b: ScoreDetail): number {
+  const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+  const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+  return bTime - aTime;
 }
 
 function formatGroupLabel(groupName?: string): string {
