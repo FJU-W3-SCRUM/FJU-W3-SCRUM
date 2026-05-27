@@ -272,7 +272,7 @@ async function enrichScoreDetails(
 
     const { data: raters, error: ratersError } = await supabase
       .from("accounts")
-      .select("id, name");
+      .select("id, name, role");
 
     if (ratersError) {
       console.warn("Failed to fetch rater names:", ratersError);
@@ -280,8 +280,10 @@ async function enrichScoreDetails(
     }
 
     const raterNameMap = new Map<string, string>();
+    const raterRoleMap = new Map<string, string>(); // 新增：存儲給分人的 role
     (raters || []).forEach((r: any) => {
       raterNameMap.set(String(r.id), r.name || "未知");
+      raterRoleMap.set(String(r.id), r.role || "");
     });
 
     // 查詢給分人的組長身份
@@ -328,10 +330,18 @@ async function enrichScoreDetails(
       if (result) {
         const raterId = String(rating.rater_account_id);
         const raterName = raterNameMap.get(raterId) || "未知";
+        
+        // 改進邏輯：優先判斷是否為真正的老師
+        const raterAccountRole = raterRoleMap.get(raterId) || "";
+        const isTeacher = raterAccountRole === "teacher";
         const isGroupLeader = raterLeaderMap.get(raterId) || false;
-        const raterRole: "teacher" | "group_leader" = isGroupLeader
-          ? "group_leader"
-          : "teacher";
+        
+        // 優先級：account.role === "teacher" → 標記為老師；否則如果是組長 → 標記為組長
+        const raterRole: "teacher" | "group_leader" = isTeacher
+          ? "teacher"
+          : isGroupLeader
+            ? "group_leader"
+            : "group_leader"; // 預設為組長（因為有評分權）
 
         if (!result.score_details) {
           result.score_details = [];
