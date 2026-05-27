@@ -556,11 +556,13 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                   <td className="hidden md:table-cell px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
                                     {student.student_no}
                                   </td>
-                                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                                    <div className="flex items-center">
-                                      {student.name}
+                                  <td className="px-3 py-3 text-sm text-gray-900 dark:text-gray-100 md:px-4">
+                                    <div className="flex flex-col items-start gap-1 md:flex-row md:items-center md:gap-0">
+                                      <span className="order-2 break-words leading-snug md:order-1">
+                                        {student.name}
+                                      </span>
                                       {student.group_leader && (
-                                        <span className="ml-2 px-2 py-0.5 bg-yellow-200 text-yellow-800 text-xs font-bold rounded-full">
+                                        <span className="order-1 px-2 py-0.5 bg-yellow-200 text-yellow-800 text-xs font-bold rounded-full md:order-2 md:ml-2">
                                           👑 組長
                                         </span>
                                       )}
@@ -580,16 +582,27 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                   <td className="px-4 py-3 text-sm text-center font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
                                     ⭐ {student.total_score}
                                   </td>
-                                  <td className="px-4 py-3 text-center min-w-fit">
+                                  <td className="px-2 py-3 text-center md:px-4">
                                     {student.score_details &&
                                       student.score_details.length > 0 && (
                                         <button
                                           onClick={() =>
                                             toggleScoreDetails(detailsKey)
                                           }
-                                          className="px-3 py-1 text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition whitespace-nowrap"
+                                          aria-label={
+                                            isExpanded ? "隱藏詳情" : "顯示詳情"
+                                          }
+                                          title={
+                                            isExpanded ? "隱藏詳情" : "顯示詳情"
+                                          }
+                                          className="inline-flex h-7 min-w-7 items-center justify-center rounded bg-indigo-100 px-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50 md:h-auto md:min-w-0 md:px-3 md:py-1"
                                         >
-                                          {isExpanded ? "▼ 隱藏" : "▶ 顯示"}
+                                          <span className="md:hidden">
+                                            {isExpanded ? "^" : "V"}
+                                          </span>
+                                          <span className="hidden whitespace-nowrap md:inline">
+                                            {isExpanded ? "▼ 隱藏" : "▶ 顯示"}
+                                          </span>
                                         </button>
                                       )}
                                   </td>
