@@ -15,7 +15,9 @@ import { SupabaseClient } from "@supabase/supabase-js";
 export interface ScoreDetail {
   star: number;
   rater_name?: string;
-  rater_role: "teacher" | "group_leader"; // 老師或組長
+  rater_role: "teacher" | "group_leader" | "group_member"; // 老師、組長或組員
+  rater_label?: string; // 顯示用：老師、第幾組組長、第幾組給分
+  rater_group_name?: string;
   created_at?: string;
 }
 
@@ -253,7 +255,9 @@ async function enrichScoreDetails(
     // 查詢所有該課堂的評分記錄
     const { data: ratingsData, error: ratingsError } = await supabase
       .from("ratings")
-      .select("id, session_id, answer_id, star, rater_account_id, created_at")
+      .select(
+        "id, session_id, answer_id, star, rater_account_id, source, created_at",
+      )
       .in("session_id", sessionIds)
       .eq("status", "approved");
 
@@ -272,7 +276,8 @@ async function enrichScoreDetails(
 
     const { data: raters, error: ratersError } = await supabase
       .from("accounts")
-      .select("id, name, role");
+      .select("id, student_no, name, role, class_id")
+      .in("id", raterIds);
 
     if (ratersError) {
       console.warn("Failed to fetch rater names:", ratersError);
@@ -281,24 +286,50 @@ async function enrichScoreDetails(
 
     const raterNameMap = new Map<string, string>();
     const raterRoleMap = new Map<string, string>(); // 新增：存儲給分人的 role
+    const raterStudentNoMap = new Map<string, string>();
+    const raterClassIdMap = new Map<string, string>();
     (raters || []).forEach((r: any) => {
       raterNameMap.set(String(r.id), r.name || "未知");
       raterRoleMap.set(String(r.id), r.role || "");
+      raterStudentNoMap.set(String(r.id), r.student_no || "");
+      raterClassIdMap.set(String(r.id), String(r.class_id || ""));
     });
 
-    // 查詢給分人的組長身份
-    const { data: memberData, error: memberError } = await supabase
-      .from("group_members")
-      .select("account_id, is_leader")
-      .in("account_id", raterIds);
+    // 查詢給分人的組別與組長身份。group_members 使用 student_no，不是 account_id。
+    const raterStudentNos = Array.from(
+      new Set(
+        Array.from(raterStudentNoMap.values()).filter((studentNo) =>
+          Boolean(studentNo),
+        ),
+      ),
+    );
+
+    const { data: memberData, error: memberError } =
+      raterStudentNos.length > 0
+        ? await supabase
+            .from("group_members")
+            .select("student_no, is_leader, groups(group_name, class_id)")
+            .in("student_no", raterStudentNos)
+        : { data: [], error: null };
 
     if (memberError) {
       console.warn("Failed to fetch group membership:", memberError);
     }
 
-    const raterLeaderMap = new Map<string, boolean>();
+    const raterGroupMap = new Map<
+      string,
+      { groupName: string; isLeader: boolean }
+    >();
     (memberData || []).forEach((m: any) => {
-      raterLeaderMap.set(String(m.account_id), m.is_leader || false);
+      const group = Array.isArray(m.groups) ? m.groups[0] : m.groups;
+      const classId = String(group?.class_id || "");
+      const studentNo = String(m.student_no || "");
+      if (!studentNo || !classId) return;
+
+      raterGroupMap.set(`${studentNo}-${classId}`, {
+        groupName: group?.group_name || "",
+        isLeader: m.is_leader || false,
+      });
     });
 
     // 獲取 answers 映射（answer_id -> account_id）
@@ -333,15 +364,32 @@ async function enrichScoreDetails(
 
         // 改進邏輯：優先判斷是否為真正的老師
         const raterAccountRole = raterRoleMap.get(raterId) || "";
-        const isTeacher = raterAccountRole === "teacher";
-        const isGroupLeader = raterLeaderMap.get(raterId) || false;
+        const isTeacher =
+          raterAccountRole === "teacher" ||
+          raterAccountRole === "admin" ||
+          (!raterId && rating.source === "teacher");
+        const raterStudentNo = raterStudentNoMap.get(raterId) || "";
+        const raterClassId = raterClassIdMap.get(raterId) || "";
+        const raterGroup = raterGroupMap.get(
+          `${raterStudentNo}-${raterClassId}`,
+        );
+        const isGroupLeader = raterGroup?.isLeader || false;
+        const groupLabel = formatGroupLabel(raterGroup?.groupName);
 
         // 優先級：account.role === "teacher" → 標記為老師；否則如果是組長 → 標記為組長
-        const raterRole: "teacher" | "group_leader" = isTeacher
+        const raterRole: "teacher" | "group_leader" | "group_member" =
+          isTeacher
           ? "teacher"
           : isGroupLeader
             ? "group_leader"
-            : "group_leader"; // 預設為組長（因為有評分權）
+            : "group_member";
+        const raterLabel = isTeacher
+          ? "老師"
+          : groupLabel
+            ? `${groupLabel}${isGroupLeader ? "組長" : "給分"}`
+            : isGroupLeader
+              ? "組長"
+              : "給分";
 
         if (!result.score_details) {
           result.score_details = [];
@@ -351,6 +399,8 @@ async function enrichScoreDetails(
           star: rating.star || 0,
           rater_name: raterName,
           rater_role: raterRole,
+          rater_label: raterLabel,
+          rater_group_name: raterGroup?.groupName,
           created_at: rating.created_at,
         });
       }
@@ -359,6 +409,13 @@ async function enrichScoreDetails(
     console.warn("Error enriching score details:", error);
     // 不拋出錯誤，因為詳情是可選的
   }
+}
+
+function formatGroupLabel(groupName?: string): string {
+  const name = groupName?.trim();
+  if (!name) return "";
+  if (/^\d+$/.test(name)) return `第${name}組`;
+  return name;
 }
 
 /**

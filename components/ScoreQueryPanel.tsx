@@ -220,13 +220,6 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
     await handleSearchAuto();
   };
 
-  const handleReset = () => {
-    setKeyword(defaultKeyword);
-    setResults([]);
-    setError("");
-    setSelectedSessionId("");
-  };
-
   const toggleScoreDetails = (key: string) => {
     const newSet = new Set(expandedScoreDetails);
     if (newSet.has(key)) {
@@ -383,13 +376,6 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                 "🔍 查詢"
               )}
             </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="px-6 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold dark:bg-gray-600 dark:text-white dark:hover:bg-gray-500 transition shadow-md hover:shadow-lg"
-            >
-              ↻ 重置
-            </button>
           </div>
         </form>
 
@@ -404,10 +390,6 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
       {/* Statistics Summary - Only show if results > 1 */}
       {results.length > 1 &&
         (() => {
-          // 檢查是否為聚合模式（全部課堂）
-          const isAggregatedMode = results.some(
-            (r) => r.session_id === "aggregated",
-          );
           const totalRaises = results.reduce(
             (sum, r) => sum + r.raise_count,
             0,
@@ -419,24 +401,15 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
           const totalScore = results.reduce((sum, r) => sum + r.total_score, 0);
           const studentCount = new Set(results.map((r) => r.account_id)).size;
 
-          // 聚合模式顯示平均值，否則顯示總計
-          const raiseValue = isAggregatedMode
-            ? (totalRaises / studentCount).toFixed(2)
-            : totalRaises;
-          const answerValue = isAggregatedMode
-            ? (totalAnswers / studentCount).toFixed(2)
-            : totalAnswers;
-          const scoreValue = isAggregatedMode
-            ? (totalScore / studentCount).toFixed(2)
-            : totalScore;
+          const raiseValue = (totalRaises / studentCount).toFixed(2);
+          const answerValue = (totalAnswers / studentCount).toFixed(2);
+          const scoreValue = (totalScore / studentCount).toFixed(2);
 
           return (
             <div className="mb-8 pt-6 border-t border-gray-200 dark:border-gray-700">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
                 📈 統計摘要{" "}
-                {isAggregatedMode && (
-                  <span className="text-xs text-gray-500">(平均值)</span>
-                )}
+                <span className="text-xs text-gray-500">(平均值)</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -449,7 +422,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                 </div>
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    🙋 {isAggregatedMode ? "平均舉手" : "總舉手次數"}
+                    🙋 平均舉手
                   </p>
                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                     {raiseValue}
@@ -457,7 +430,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                 </div>
                 <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    ✋ {isAggregatedMode ? "平均被點" : "總被點次數"}
+                    ✋ 平均被點
                   </p>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {answerValue}
@@ -465,7 +438,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                 </div>
                 <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    ⭐ {isAggregatedMode ? "平均評分" : "總評點分數"}
+                    ⭐ 平均評分
                   </p>
                   <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                     {scoreValue}
@@ -658,13 +631,20 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                                                           detail.rater_role ===
                                                           "teacher"
                                                             ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                                                            : detail.rater_role ===
+                                                                "group_leader"
+                                                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
                                                             : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
                                                         }`}
                                                       >
-                                                        {detail.rater_role ===
-                                                        "teacher"
-                                                          ? "🎓 老師"
-                                                          : "👥 組長"}
+                                                        {detail.rater_label ||
+                                                          (detail.rater_role ===
+                                                          "teacher"
+                                                            ? "🎓 老師"
+                                                            : detail.rater_role ===
+                                                                "group_leader"
+                                                              ? "👑 組長"
+                                                              : "👥 給分")}
                                                       </span>
                                                     </div>
                                                     {detail.created_at && (
