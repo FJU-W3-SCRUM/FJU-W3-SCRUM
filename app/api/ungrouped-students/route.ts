@@ -29,20 +29,34 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, students: [] });
     }
 
-    // Query 2: Get all students already in this group
-    const { data: groupMembers, error: groupError } = await supabase
-      .from("group_members")
-      .select("student_no")
-      .eq("group_id", Number(group_id));
+    // Query 2: Get all students already assigned to ANY group in this class
+    // First get group ids for this class, then fetch group_members for those groups
+    const { data: groupsInClass, error: groupsError } = await supabase
+      .from("groups")
+      .select("id")
+      .eq("class_id", Number(class_id));
 
-    if (groupError) {
-      console.error("groupError:", groupError);
-      return NextResponse.json({ ok: false, error: groupError.message }, { status: 500 });
+    if (groupsError) {
+      console.error("groupsError:", groupsError);
+      return NextResponse.json({ ok: false, error: groupsError.message }, { status: 500 });
     }
 
-    const groupedStudentNos = new Set(
-      (groupMembers || []).map((gm: any) => gm.student_no)
-    );
+    const groupIds = (groupsInClass || []).map((g: any) => g.id);
+
+    let groupedStudentNos = new Set<string>();
+    if (groupIds.length > 0) {
+      const { data: groupMembers, error: groupError } = await supabase
+        .from("group_members")
+        .select("student_no")
+        .in("group_id", groupIds);
+
+      if (groupError) {
+        console.error("groupError:", groupError);
+        return NextResponse.json({ ok: false, error: groupError.message }, { status: 500 });
+      }
+
+      groupedStudentNos = new Set((groupMembers || []).map((gm: any) => gm.student_no));
+    }
 
     // Filter students NOT in group (NOT EXISTS logic)
     const ungroupedStudents = allClassStudents.filter(
