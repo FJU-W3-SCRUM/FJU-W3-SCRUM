@@ -90,6 +90,26 @@ export default function GroupMembersWithScores({
     );
   };
 
+  const lowestAnswerCountMemberIds = new Set<string>();
+  if (members.length > 0) {
+    members
+      .map((member) => ({
+        member,
+        answerCount: scores.get(member.account_id)?.answerCount ?? 0,
+      }))
+      .sort((a, b) => {
+        if (a.answerCount !== b.answerCount) {
+          return a.answerCount - b.answerCount;
+        }
+
+        return a.member.student_no.localeCompare(b.member.student_no);
+      })
+      .slice(0, 3)
+      .forEach(({ member }) => {
+        lowestAnswerCountMemberIds.add(member.account_id);
+      });
+  }
+
   if (loading) {
     return (
       <div className="p-4 text-center text-gray-500 dark:text-gray-400">
@@ -115,14 +135,25 @@ export default function GroupMembersWithScores({
           <div
             key={member.id}
             onClick={() => onMemberSelect?.(member.id)}
-            className="p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer transition-colors"
+            className={`p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer transition-colors ${
+              lowestAnswerCountMemberIds.has(member.account_id)
+                ? "bg-red-50/80 dark:bg-red-900/20 ring-1 ring-inset ring-red-200 dark:ring-red-800"
+                : ""
+            }`}
           >
             <div className="flex justify-between items-center">
               {/* Member Info */}
               <div className="flex-1">
-                <p className="font-mono text-sm text-gray-900 dark:text-gray-100">
-                  {formatScoreDisplay(member)}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-mono text-sm text-gray-900 dark:text-gray-100">
+                    {formatScoreDisplay(member)}
+                  </p>
+                  {lowestAnswerCountMemberIds.has(member.account_id) && (
+                    <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-200">
+                      發言最低 3 名
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Score Badges */}

@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       .eq('class_id', class_id)
       .order('group_name', { ascending: true });
 
-    const groupIds = availableGroups?.map(g => g.id) || [];
+    const groupIds = availableGroups?.map((g: { id: number }) => g.id) || [];
 
     // 5. Fetch Class Members from accounts table (more reliable than class_members)
     const { data: accounts, error: accountsError } = await supabase
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
       .eq('class_id', class_id);
 
     const seatMap: Record<string, {row: number, col: number}> = {};
-    seatData?.forEach(s => {
+    seatData?.forEach((s: { account_id: string; seat_row: number; seat_col: number }) => {
       seatMap[s.account_id] = { row: s.seat_row, col: s.seat_col };
     });
 

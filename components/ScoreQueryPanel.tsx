@@ -289,31 +289,46 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {group.students.map((student, idx) => (
-                        <tr
-                          key={`${student.account_id}-${idx}`}
-                          className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                            {student.class_name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
-                            {student.student_no}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                            {student.name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20">
-                            {student.raiseCount}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-green-50 dark:bg-green-900/20">
-                            {student.answerCount}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
-                            ⭐ {student.totalScore}
-                          </td>
-                        </tr>
-                      ))}
+                      {group.students.map((student, idx) => {
+                        const isLowestAnswerCount = student.isLowestAnswerCount;
+
+                        return (
+                          <tr
+                            key={`${student.account_id}-${idx}`}
+                            className={`border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                              isLowestAnswerCount
+                                ? "bg-red-50/80 dark:bg-red-900/20 ring-1 ring-inset ring-red-200 dark:ring-red-800"
+                                : ""
+                            }`}
+                          >
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                              {student.class_name}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
+                              {student.student_no}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span>{student.name}</span>
+                                {isLowestAnswerCount && (
+                                  <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-200">
+                                    發言最低 3 名
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20">
+                              {student.raiseCount}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-green-50 dark:bg-green-900/20">
+                              {student.answerCount}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
+                              ⭐ {student.totalScore}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -326,6 +341,9 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
       {/* Stats Footer */}
       {results.length > 0 && (
         <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="mb-4 text-sm text-red-700 dark:text-red-300 font-semibold">
+            已標記目前班上 answerCount 最低的 3 位學員
+          </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
               <p className="text-sm text-gray-600 dark:text-gray-400">總舉手次數</p>

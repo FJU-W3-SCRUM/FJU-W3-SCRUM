@@ -18,7 +18,9 @@ export async function GET(request: Request) {
 
     if (accountError) throw accountError;
     
-    const classIds = accounts.map(a => a.class_id).filter(Boolean);
+    const classIds = accounts
+      .map((account: { class_id: number | null }) => account.class_id)
+      .filter((classId: number | null): classId is number => Boolean(classId));
 
     if (classIds.length === 0) {
       return NextResponse.json({ sessions: [] });

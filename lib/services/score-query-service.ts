@@ -23,6 +23,7 @@ export interface StudentScoreQueryResult {
   raiseCount: number;
   answerCount: number;
   totalScore: number;
+  isLowestAnswerCount?: boolean;
 }
 
 /**
@@ -179,17 +180,6 @@ export async function queryScores(
         return;
       }
 
-      // 關鍵字篩選
-      if (filters.keyword) {
-        const keyword = filters.keyword.toLowerCase();
-        const matchesKeyword =
-          account.student_no.includes(keyword) ||
-          account.name.toLowerCase().includes(keyword);
-        if (!matchesKeyword) {
-          return;
-        }
-      }
-
       const key = `${session?.id}-${account.id}`;
 
       if (!resultMap.has(key)) {
@@ -235,8 +225,53 @@ export async function queryScores(
       }
     });
 
-    // Step 6: 返回已排序的結果
-    return Array.from(resultMap.values())
+    const results = Array.from(resultMap.values());
+
+    // Step 6: 標記目前班上 answerCount 最低的 3 位學員
+    const answerCountByClass = new Map<string, Array<StudentScoreQueryResult>>();
+    results.forEach((result) => {
+      const classResults = answerCountByClass.get(result.class_id) || [];
+      classResults.push(result);
+      answerCountByClass.set(result.class_id, classResults);
+    });
+
+    const lowestAnswerCountByClass = new Map<string, Set<string>>();
+    answerCountByClass.forEach((classResults, classId) => {
+      const lowestIds = classResults
+        .map((result) => ({
+          accountId: result.account_id,
+          answerCount: result.answerCount,
+          studentNo: result.student_no,
+        }))
+        .sort((a, b) => {
+          if (a.answerCount !== b.answerCount) {
+            return a.answerCount - b.answerCount;
+          }
+
+          return a.studentNo.localeCompare(b.studentNo);
+        })
+        .slice(0, 3)
+        .map((item) => item.accountId);
+
+      lowestAnswerCountByClass.set(classId, new Set(lowestIds));
+    });
+
+    results.forEach((result) => {
+      result.isLowestAnswerCount = lowestAnswerCountByClass.get(result.class_id)?.has(result.account_id) || false;
+    });
+
+    const filteredResults = filters.keyword
+      ? results.filter((result) => {
+          const keyword = filters.keyword!.toLowerCase();
+          return (
+            result.student_no.includes(keyword) ||
+            result.name.toLowerCase().includes(keyword)
+          );
+        })
+      : results;
+
+    // Step 7: 返回已排序的結果
+    return filteredResults
       .sort((a, b) => {
         // 先按班別排序
         const classCompare = a.class_name.localeCompare(b.class_name);

@@ -64,7 +64,7 @@ export function useHandsUpSync({ sessionId, initialQueue = [], initialMembers = 
         { event: '*', schema: 'public', table: 'session_groups', filter: `session_id=eq.${sessionId}` },
         () => { refresh(); }
       )
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         console.log(`[useHandsUpSync] channel status for ${sessionId}:`, status);
       });
 

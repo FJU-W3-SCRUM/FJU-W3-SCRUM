@@ -47,7 +47,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
         
         if (classError) throw classError;
         
-        const classIds = classes?.map(c => c.id) || [];
+        const classIds = classes?.map((c: { id: string | number }) => c.id) || [];
         if (classIds.length === 0) {
           setAvailableSessions([]);
           setLoading(false);
