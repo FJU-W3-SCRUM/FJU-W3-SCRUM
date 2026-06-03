@@ -227,6 +227,17 @@ Notes:
 
 ✅ 保留「系統分」與「教師最終分」
 
+## 感謝牆
+### session_scores
+
+| 欄位名稱 | 型別 | 說明 |
+|---|---|---|
+| id | BIGSERIAL (PK) | ID |
+| sender_account_id | BIGINT (FK) | 送出者/發言者學生id |
+| recipient_account_id | BIGINT (FK) | 接收者/被感謝學生id |
+| content | TEXT (NOT NULL)| 內容 |
+| created_at | TIMESTAMP | 建立時間 |
+| updated_at | TIMESTAMP (FK) | 修改時間 |
 ---
 
 ## 8. 可擴充建議（Optional）
