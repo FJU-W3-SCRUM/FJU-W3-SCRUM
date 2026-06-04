@@ -14,8 +14,6 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import {
   queryScores,
-  getTeacherClasses,
-  getStudentClasses,
   type ScoreQueryFilters
 } from '@/lib/services/score-query-service';
 
@@ -75,56 +73,15 @@ export async function GET(request: Request) {
 }
 
 /**
- * POST /api/scores/query/teacher-classes
- * 取得老師的班別列表
- * 
- * Body:
- * - teacherId: 老師 ID
+ * POST endpoints for teacher-classes and student-classes
+ * are now handled by dedicated route.ts files in subdirectories
  */
 export async function POST(request: Request) {
   try {
-    const pathname = new URL(request.url).pathname;
-
-    if (pathname.includes('/teacher-classes')) {
-      const body = await request.json();
-      const { teacherId } = body;
-
-      if (!teacherId) {
-        return NextResponse.json(
-          { ok: false, error: 'teacherId is required' },
-          { status: 400 }
-        );
-      }
-
-      const classes = await getTeacherClasses(supabase, teacherId);
-
-      return NextResponse.json(
-        { ok: true, data: classes },
-        { status: 200 }
-      );
-    } else if (pathname.includes('/student-classes')) {
-      const body = await request.json();
-      const { studentId } = body;
-
-      if (!studentId) {
-        return NextResponse.json(
-          { ok: false, error: 'studentId is required' },
-          { status: 400 }
-        );
-      }
-
-      const classes = await getStudentClasses(supabase, studentId);
-
-      return NextResponse.json(
-        { ok: true, data: classes },
-        { status: 200 }
-      );
-    } else {
-      return NextResponse.json(
-        { ok: false, error: 'Invalid endpoint' },
-        { status: 400 }
-      );
-    }
+    return NextResponse.json(
+      { ok: false, error: 'POST not supported on /api/scores/query. Use /api/scores/query/teacher-classes or /api/scores/query/student-classes' },
+      { status: 405 }
+    );
   } catch (error: any) {
     console.error('POST /api/scores/query error:', error);
     return NextResponse.json(
