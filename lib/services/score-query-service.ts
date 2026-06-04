@@ -85,7 +85,7 @@ export async function queryScores(
         throw new Error('Student not assigned to any class');
       }
 
-      userClasses = [studentAccount.class_id];
+      userClasses = [''+studentAccount.class_id];
 
       // 如果學生指定了不同的班別，拒絕訪問
       if (filters.classId && !userClasses.includes(filters.classId)) {
