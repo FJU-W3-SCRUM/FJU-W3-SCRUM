@@ -23,17 +23,15 @@ interface OverviewProps {
 
 export default function ReportOverview({ members, presentingGroupId, onRate, sessionId }: OverviewProps) {
   const [scores, setScores] = useState<Map<string, StudentScoreData>>(new Map());
-  const [loadingScores, setLoadingScores] = useState(false);
 
   useEffect(() => {
-    if (!sessionId || members.length === 0) {
-      setScores(new Map());
-      return;
-    }
-
     const loadScores = async () => {
+      if (!sessionId || members.length === 0) {
+        setScores(new Map());
+        return;
+      }
+
       try {
-        setLoadingScores(true);
         const newScores = new Map<string, StudentScoreData>();
 
         for (const member of members) {
@@ -52,14 +50,13 @@ export default function ReportOverview({ members, presentingGroupId, onRate, ses
         }
 
         setScores(newScores);
-      } catch (err: any) {
-        console.error("Error loading scores:", err);
-      } finally {
-        setLoadingScores(false);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error("Error loading scores:", errorMessage);
       }
     };
 
-    loadScores();
+    void loadScores();
   }, [sessionId, members]);
 
   const groupedMembers = useMemo(() => {

@@ -21,18 +21,23 @@ export default function Home() {
 
   // On initial load, try to load user from cookie
   useEffect(() => {
-    const stored = getCookie('ch_user');
-    if (stored) {
+    const loadUser = async () => {
+      const stored = getCookie('ch_user');
+      if (!stored) return;
+
       try {
-        setUser(JSON.parse(stored));
-      } catch (e) {
+        const parsed = JSON.parse(stored) as Account;
+        setUser(parsed);
+      } catch {
         deleteCookie('ch_user');
       }
-    }
+    };
+
+    void loadUser();
   }, []);
 
   function onLogin(a: Account) {
-    setCookie('ch_user', JSON.stringify(a), 1200);
+    setCookie('ch_user', JSON.stringify(a), 28800);
     // reload so that other components pick up auth state
     window.location.reload();
   }
@@ -66,6 +71,7 @@ export default function Home() {
                 <li className="mt-2"><strong className="text-gray-900 dark:text-gray-200">學生：</strong></li>
                 <li className="ml-4">• 上課模式 - 參與課堂互動</li>
                 <li className="ml-4">• 報告模式 - 查看報告展示</li>
+                <li className="ml-4">• 感謝牆 - 發表具名讚賞卡，讓幫助者的貢獻被看見</li>
               </ul>
             </div>
           </div>

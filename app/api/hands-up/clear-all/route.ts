@@ -8,7 +8,8 @@ export async function POST(request: Request) {
     // const { data: { user } } = await supabase.auth.getUser();
     // Verify user is teacher or session group leader
     
-    const { session_id } = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
+  const { session_id } = body;
 
     if (!session_id) {
       return NextResponse.json({ error: 'Missing session_id' }, { status: 400 });
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: 'All pending hand raises cleared for the session', clearedCount: data?.length || 0 }, { status: 200 });
 
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

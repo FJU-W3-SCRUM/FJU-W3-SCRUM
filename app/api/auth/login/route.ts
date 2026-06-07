@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import supabase from "@/lib/supabase/client";
+import { supabaseAdmin } from "@/lib/supabase/client";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const student_no = body.student_no as string | undefined;
     const password = body.password as string | undefined;
 
@@ -12,25 +13,35 @@ export async function POST(request: Request) {
     }
 
     // Backdoor accounts (明碼密碼)
-    const backdoorAccounts: Record<string, { id: string; name: string; role: string; password: string }> = { joery: { id: '1', name: 'Joery (Admin)', role: 'admin', password: '1234' }, st01: { id: '2', name: 'ST01 Student', role: 'student', password: '1234' } };
+    const backdoorAccounts: Record<string, { name: string; role: string; password: string }> = {
+      joery: { name: 'Joery (Admin)', role: 'admin', password: '1234' },
+      st01: { name: 'ST01 Student', role: 'student', password: '1234' },
+    };
 
     // Check backdoor accounts first
     if (student_no in backdoorAccounts) {
       const backdoor = backdoorAccounts[student_no];
-      // 可以不用密碼或密碼正確就登入
       if (!password || password === backdoor.password) {
-        return NextResponse.json({ 
-          ok: true, 
-          user: { 
-            id: backdoor.id, student_no, name: backdoor.name, role: backdoor.role 
-          } 
+        // 嘗試從資料庫查找真實帳號，以取得正確的 id 和 class_id
+        const { data: realAccount } = await supabaseAdmin
+          .from('accounts')
+          .select('id, name, role')
+          .eq('student_no', student_no)
+          .maybeSingle();
+
+        return NextResponse.json({
+          ok: true,
+          user: {
+            id: realAccount ? String(realAccount.id) : null,
+            student_no,
+            name: realAccount?.name ?? backdoor.name,
+            role: realAccount?.role ?? backdoor.role,
+          },
         });
-      } else {
-        return NextResponse.json({ ok: false, error: "帳號或密碼錯誤" }, { status: 401 });
       }
+      return NextResponse.json({ ok: false, error: "帳號或密碼錯誤" }, { status: 401 });
     }
 
-    // Query database with plaintext password comparison
     const { data, error } = await supabase
       .from("accounts")
       .select("id,student_no,name,role,password_hash")
@@ -39,22 +50,19 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+      return NextResponse.json({ ok: false, error: `[DB ERROR] ${error.message}`, code: error.code }, { status: 500 });
     }
 
     if (!data) {
-      return NextResponse.json({ ok: false, error: "帳號或密碼錯誤，請確認已由教師匯入學生名單。" }, { status: 401 });
+      const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+      return NextResponse.json({ ok: false, error: `[NOT FOUND] student_no="${student_no}" not found. service_key_set=${hasServiceKey}` }, { status: 401 });
     }
 
-    // Plaintext password comparison (no encryption)
-    // If password_hash exists, compare with it directly
-    // If no password_hash, allow login without password
     if (data.password_hash) {
       if (password !== data.password_hash) {
         return NextResponse.json({ ok: false, error: "帳號或密碼錯誤" }, { status: 401 });
       }
     } else if (password) {
-      // If password_hash is empty but password provided, reject
       return NextResponse.json({ ok: false, error: "帳號或密碼錯誤" }, { status: 401 });
     }
 
@@ -66,11 +74,10 @@ export async function POST(request: Request) {
     };
 
     const res = NextResponse.json({ ok: true, user });
-    // Set cookie for client-side session persistence (20 minutes)
     const cookieValue = encodeURIComponent(JSON.stringify(user));
-    res.headers.set('Set-Cookie', `ch_user=${cookieValue}; Path=/; Max-Age=1200; SameSite=Lax`);
+    res.headers.set('Set-Cookie', `ch_user=${cookieValue}; Path=/; Max-Age=28800; SameSite=Lax`);
     return res;
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message || String(e) }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

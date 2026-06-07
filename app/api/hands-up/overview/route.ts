@@ -52,7 +52,8 @@ export async function GET(request: Request) {
       .eq('class_id', class_id)
       .order('group_name', { ascending: true });
 
-    const groupIds = availableGroups?.map(g => g.id) || [];
+    const availableGroupsList = (availableGroups || []) as Array<{ id: number; group_name: string }>;
+    const groupIds = availableGroupsList.map((g) => g.id);
 
     // 5. Fetch Class Members from accounts table (more reliable than class_members)
     const { data: accounts, error: accountsError } = await supabase
@@ -63,14 +64,17 @@ export async function GET(request: Request) {
 
     if (accountsError) throw new Error(`accountsError: ${accountsError.message}`);
 
+    const accountRows = (accounts || []) as Array<{ id: number; student_no: string; name: string }>;
+
     // Fetch seating info if available
     const { data: seatData } = await supabase
       .from('class_members')
       .select('account_id, seat_row, seat_col')
       .eq('class_id', class_id);
 
-    const seatMap: Record<string, {row: number, col: number}> = {};
-    seatData?.forEach(s => {
+    const seatRows = (seatData || []) as Array<{ account_id: number; seat_row: number; seat_col: number }>;
+    const seatMap: Record<number, { row: number; col: number }> = {};
+    seatRows.forEach((s) => {
       seatMap[s.account_id] = { row: s.seat_row, col: s.seat_col };
     });
 
@@ -106,57 +110,90 @@ export async function GET(request: Request) {
     if (handsError) throw new Error(`handsError: ${handsError.message}`);
 
     // 8. Process Map
-      // 7b. Fetch session-specific seat selections (session_seats)
-      const { data: sessionSeats } = await supabase
-        .from('session_seats')
-        .select('account_id, seat_row, seat_col')
-        .eq('session_id', session_id);
+    // 7b. Fetch session-specific seat selections (session_seats)
+    const { data: sessionSeats } = await supabase
+      .from('session_seats')
+      .select('account_id, seat_row, seat_col')
+      .eq('session_id', session_id);
 
-    const memberMap: any = {};
-    const memberByStudentNo: any = {};
+    type MemberInfo = {
+      id: number;
+      name: string;
+      student_no: string;
+      seat_row: number | null;
+      seat_col: number | null;
+      group: { id: number; name: string } | null;
+      is_leader: boolean;
+      hand_raised: boolean;
+      hand_raise_id: number | null;
+      raised_at: string | null;
+    };
 
-    accounts?.forEach((acc: any) => {
+    const memberMap: Record<number, MemberInfo> = {};
+    const memberByStudentNo: Record<string, MemberInfo> = {};
+
+    accountRows.forEach((acc) => {
       const seat = seatMap[acc.id];
-      const memberObj = {
+      const memberObj: MemberInfo = {
         id: acc.id,
         name: acc.name,
         student_no: acc.student_no,
-        seat_row: seat?.row || null,
-        seat_col: seat?.col || null,
+        seat_row: seat?.row ?? null,
+        seat_col: seat?.col ?? null,
         group: null,
         is_leader: false,
         hand_raised: false,
         hand_raise_id: null,
-        raised_at: null
+        raised_at: null,
       };
       memberMap[acc.id] = memberObj;
       memberByStudentNo[acc.student_no] = memberObj;
     });
 
-    groupMembers?.forEach((gm: any) => {
+    const groupMemberRows = (groupMembers || []) as Array<{
+      student_no: string;
+      is_leader: boolean;
+      group_id: number;
+      groups: Array<{ id: number; group_name: string }> | { id: number; group_name: string } | null;
+    }>;
+
+    groupMemberRows.forEach((gm) => {
       const targetMember = memberByStudentNo[gm.student_no];
       if (targetMember) {
         const g = Array.isArray(gm.groups) ? gm.groups[0] : gm.groups;
         if (g) {
           targetMember.group = {
             id: gm.group_id,
-            name: g.group_name
+            name: g.group_name,
           };
         }
         targetMember.is_leader = gm.is_leader;
       }
     });
 
-    pendingHands?.forEach((h: any) => {
-      if (memberMap[h.account_id]) {
-         memberMap[h.account_id].hand_raised = true;
-         memberMap[h.account_id].hand_raise_id = h.id;
-         memberMap[h.account_id].raised_at = h.raised_at;
+    const pendingHandRows = (pendingHands || []) as Array<{
+      id: number;
+      account_id: number;
+      raised_at: string;
+      status: string;
+    }>;
+
+    pendingHandRows.forEach((h) => {
+      const member = memberMap[h.account_id];
+      if (member) {
+        member.hand_raised = true;
+        member.hand_raise_id = h.id;
+        member.raised_at = h.raised_at;
       }
     });
 
-    // Apply session_seats overrides so selected seats during this session are reflected
-    sessionSeats?.forEach((s: any) => {
+    const sessionSeatRows = (sessionSeats || []) as Array<{
+      account_id: number;
+      seat_row: number | null;
+      seat_col: number | null;
+    }>;
+
+    sessionSeatRows.forEach((s) => {
       const m = memberMap[s.account_id];
       if (m) {
         m.seat_row = s.seat_row ?? m.seat_row;
@@ -177,8 +214,8 @@ export async function GET(request: Request) {
        hands_up_queue: pendingHands
     }, { status: 200 });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("API Error in overview:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

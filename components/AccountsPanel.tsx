@@ -1,28 +1,46 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import ImportCsvForm from "./ImportCsvForm";
 
+interface AccountItem {
+  id: string;
+  class_name?: string;
+  student_no?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+interface AccountClass {
+  id: string;
+  class_name: string;
+}
+
 export default function AccountsPanel() {
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<AccountItem[]>([]);
   const [q, setQ] = useState("");
   const [classId, setClassId] = useState<string | null>(null);
-  const [classes, setClasses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<AccountClass[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  async function loadClasses() {
-    const res = await fetch("/api/classes");
-    const j = await res.json();
-    if (j.ok) setClasses(j.classes || []);
-  }
+  useEffect(() => {
+    const init = async () => {
+      const res = await fetch("/api/classes");
+      const j = await res.json();
+      if (j.ok) setClasses(j.classes || []);
+    };
 
-  async function loadAccounts() {
+    void init();
+  }, []);
+
+  const loadAccounts = useCallback(async (targetPage = page) => {
     const params = new URLSearchParams();
     if (classId) params.set("class_id", String(classId));
     if (q) params.set("q", q);
-    params.set("page", String(page));
+    params.set("page", String(targetPage));
     params.set("page_size", String(pageSize));
     const res = await fetch(`/api/accounts?${params.toString()}`);
     const j = await res.json();
@@ -31,23 +49,19 @@ export default function AccountsPanel() {
       setTotalCount(j.totalCount || 0);
       setTotalPages(j.totalPages || 0);
     }
-  }
+  }, [classId, q, page, pageSize]);
 
-  useEffect(() => { loadClasses(); }, []);
-  
-  // Refresh accounts list when page, pageSize, classId or q changes
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setPage(1); // Reset to first page when filters change
-      loadAccounts();
-    }, 300); // Debounce search
-    return () => clearTimeout(handler);
-  }, [classId, q]);
-  
-  // Load accounts when page or pageSize changes
+    const handler = window.setTimeout(() => {
+      setPage(1);
+      void loadAccounts(1);
+    }, 300);
+    return () => window.clearTimeout(handler);
+  }, [classId, q, pageSize]);
+
   useEffect(() => {
-    loadAccounts();
-  }, [page, pageSize]);
+    void loadAccounts(page);
+  }, [page]);
 
   return (
     <div className="space-y-4">

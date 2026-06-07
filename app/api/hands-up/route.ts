@@ -3,7 +3,8 @@ import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 
 export async function POST(request: Request) {
   try {
-    const { session_id, account_id } = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
+  const { session_id, account_id } = body;
 
     if (!session_id || !account_id) {
       return NextResponse.json({ error: 'Missing session_id or account_id' }, { status: 400 });
@@ -42,8 +43,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ...data, ok: true }, { status: 201 });
 
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
@@ -59,7 +60,7 @@ export async function DELETE(request: Request) {
       }
   
       // Update status to 'P' (Put down hand)
-      const { data, error } = await supabase
+const { error } = await supabase
         .from('hand_raises')
         .update({ status: 'P' })
         .eq('session_id', session_id)
@@ -73,7 +74,7 @@ export async function DELETE(request: Request) {
   
       return NextResponse.json({ message: 'Hand raise put down (P)', ok: true }, { status: 200 });
   
-    } catch (err: any) {
-      return NextResponse.json({ error: err.message }, { status: 500 });
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
     }
   }

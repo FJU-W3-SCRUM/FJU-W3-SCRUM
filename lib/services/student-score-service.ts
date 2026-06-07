@@ -21,6 +21,23 @@ export interface StudentScoreData {
   totalScore: number;        // 評點分數 (ratings.star 加總)
 }
 
+type HandRaiseWithAccountRow = {
+  id: string;
+  account_id: string;
+  status: string;
+  accounts?: {
+    student_no?: string;
+    name?: string;
+  } | null;
+};
+
+type AnswerWithRatingsRow = {
+  id: string;
+  session_id: string;
+  account_id: string;
+  ratings?: Array<{ id: string; star: number | null }> | null;
+};
+
 /**
  * 獲取課堂內所有學生的發言統計
  * 
@@ -93,13 +110,14 @@ export async function getStudentScoresForSession(
 
     // 建立 account_id 到評分分數的對應表
     const scoresByAccountId = new Map<string, number>();
-    (answersWithRatings || []).forEach((answer: any) => {
+    const answersRows = (answersWithRatings || []) as AnswerWithRatingsRow[];
+    answersRows.forEach((answer) => {
       const accountId = answer.account_id;
-      const ratings = answer.ratings || [];
-      const answerScore = ratings.reduce((sum: number, rating: any) => sum + (rating.star || 0), 0);
-      
+      const ratings = answer.ratings ?? [];
+      const answerScore = ratings.reduce((sum, rating) => sum + (rating.star ?? 0), 0);
+
       if (answerScore > 0) {
-        const currentScore = scoresByAccountId.get(accountId) || 0;
+        const currentScore = scoresByAccountId.get(accountId) ?? 0;
         scoresByAccountId.set(accountId, currentScore + answerScore);
       }
     });
@@ -108,19 +126,20 @@ export async function getStudentScoresForSession(
     const studentMap = new Map<string, StudentScoreData>();
 
     // 處理舉手記錄
-    (handsData || []).forEach((hand: any) => {
+    const handsRows = (handsData || []) as HandRaiseWithAccountRow[];
+    handsRows.forEach((hand) => {
       const accountId = hand.account_id;
       const account = hand.accounts;
-      const studentNo = account?.student_no || '';
+      const studentNo = account?.student_no ?? '';
 
       if (!studentMap.has(accountId)) {
         studentMap.set(accountId, {
           account_id: accountId,
           student_no: studentNo,
-          name: account?.name || '',
+          name: account?.name ?? '',
           answerCount: 0,
           raiseCount: 0,
-          totalScore: 0
+          totalScore: 0,
         });
       }
 
@@ -218,22 +237,19 @@ export async function getStudentScoreForSession(
     }
 
     // Step 4: 計算統計
-    let answerCount = 0;
-    let raiseCount = (handsData || []).length;
+    const handsRows = (handsData || []) as Array<{ status?: string }>;
+    const answersRows = (answersWithRatings || []) as Array<{
+      ratings?: Array<{ star?: number | null }> | null;
+    }>;
+
+    const answerCount = handsRows.reduce((count, hand) => count + (hand.status === 'A' ? 1 : 0), 0);
+    const raiseCount = handsRows.length;
     let totalScore = 0;
 
-    // 計算被點名次數
-    (handsData || []).forEach((hand: any) => {
-      if (hand.status === 'A') {
-        answerCount += 1;
-      }
-    });
-
-    // 計算分數 (從 answers->ratings 中獲取)
-    (answersWithRatings || []).forEach((answer: any) => {
-      const ratings = answer.ratings || [];
-      ratings.forEach((rating: any) => {
-        totalScore += rating.star || 0;
+    answersRows.forEach((answer) => {
+      const ratings = answer.ratings ?? [];
+      ratings.forEach((rating) => {
+        totalScore += rating.star ?? 0;
       });
     });
 

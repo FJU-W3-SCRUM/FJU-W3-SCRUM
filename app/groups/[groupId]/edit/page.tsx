@@ -22,11 +22,7 @@ export default function GroupEditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadGroupData();
-  }, [groupId]);
-
-  async function loadGroupData() {
+  const loadGroupData = React.useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
@@ -59,13 +55,14 @@ export default function GroupEditPage() {
         loadUngroupedStudents(g.class_id, g.id),
         loadMembers(g.id)
       ]);
-    } catch (e: any) {
-      console.error("loadGroupData error:", e);
-      setError(e.message || "加載失敗");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("loadGroupData error:", errorMessage);
+      setError(errorMessage || "加載失敗");
     } finally {
       setLoading(false);
     }
-  }
+  }, [groupId]);
 
   async function loadUngroupedStudents(classId: number, gid: number) {
     try {
@@ -78,9 +75,10 @@ export default function GroupEditPage() {
         console.error("Error loading ungrouped students:", j.error);
         setError(`加載未分組學生失敗: ${j.error}`);
       }
-    } catch (e: any) {
-      console.error("loadUngroupedStudents exception:", e);
-      setError(`加載未分組學生異常: ${e.message}`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("loadUngroupedStudents exception:", errorMessage);
+      setError(`加載未分組學生異常: ${errorMessage}`);
     }
   }
 
@@ -95,11 +93,20 @@ export default function GroupEditPage() {
         console.error("Error loading members:", j.error);
         setError(`加載成員失敗: ${j.error}`);
       }
-    } catch (e: any) {
-      console.error("loadMembers exception:", e);
-      setError(`加載成員異常: ${e.message}`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("loadMembers exception:", errorMessage);
+      setError(`加載成員異常: ${errorMessage}`);
     }
   }
+
+  useEffect(() => {
+    const init = async () => {
+      await loadGroupData();
+    };
+
+    void init();
+  }, [loadGroupData]);
 
   async function addSelectedStudents() {
     if (!group) return;
@@ -299,7 +306,11 @@ export default function GroupEditPage() {
 
         {/* Right: Current Members */}
         <div className="col-span-1 bg-blue-50 p-3 border rounded">
-          <div className="font-medium text-sm mb-2">組員</div>
+          <div className="font-medium text-sm mb-1">組員</div>
+          <div className="text-xs text-gray-500 mb-2 space-y-0.5">
+            <div>⬤ 圓形選項：點選可設為組長</div>
+            <div>☑ 勾選方框：勾選後點「← 移出」可移除</div>
+          </div>
           <div
             className="max-h-96 overflow-auto border rounded bg-white p-2"
             onDragOver={(e) => {

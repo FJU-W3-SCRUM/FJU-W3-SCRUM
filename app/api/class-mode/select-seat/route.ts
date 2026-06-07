@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const { session_id, row, col, actorAccountId } = body;
 
     if (!session_id || typeof row !== 'number' || typeof col !== 'number' || !actorAccountId) {
@@ -27,6 +27,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '此座位已被選擇，請選擇其他座位。' }, { status: 409 });
     }
 
+    // Prevent changing to a different seat once the student already has a confirmed seat.
+    const { data: existingSeat, error: existingSeatError } = await supabaseAdmin
+      .from('session_seats')
+      .select('seat_row,seat_col')
+      .eq('session_id', session_id)
+      .eq('account_id', actorAccountId)
+      .maybeSingle();
+
+    if (existingSeatError) {
+      throw existingSeatError;
+    }
+
+    if (existingSeat && (existingSeat.seat_row !== row || existingSeat.seat_col !== col)) {
+      return NextResponse.json({ error: '你已確認一個座位，若要變更請先聯絡老師或管理者' }, { status: 403 });
+    }
+
     const { error: upsertError } = await supabaseAdmin
       .from('session_seats')
       .upsert(
@@ -42,7 +58,7 @@ export async function POST(request: Request) {
     if (upsertError) throw upsertError;
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('select-seat error', err);
     const status = err?.status || 500;
     return NextResponse.json({ error: err?.message || 'Server error' }, { status });

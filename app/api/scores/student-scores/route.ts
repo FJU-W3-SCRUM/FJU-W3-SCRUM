@@ -39,10 +39,11 @@ export async function GET(request: Request) {
       const scores = await getStudentScoresForSession(supabase, sessionId);
       return NextResponse.json({ ok: true, data: scores }, { status: 200 });
     }
-  } catch (error: any) {
-    console.error('GET /api/scores/student-scores error:', error);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('GET /api/scores/student-scores error:', err);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Internal server error' },
+      { ok: false, error: err.message || 'Internal server error' },
       { status: 500 }
     );
   }

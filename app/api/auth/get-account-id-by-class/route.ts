@@ -62,10 +62,10 @@ export async function GET(request: Request) {
       class_id: account.class_id
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[get-account-id-by-class] Error:', err);
     return NextResponse.json(
-      { error: err.message || 'Internal server error' },
+      { error: err instanceof Error ? err.message : String(err) || 'Internal server error' },
       { status: 500 }
     );
   }

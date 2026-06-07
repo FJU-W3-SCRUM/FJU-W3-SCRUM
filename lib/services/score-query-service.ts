@@ -17,12 +17,14 @@ export interface StudentScoreQueryResult {
   class_name: string;
   session_id: string;
   session_title: string;
+  session_starts_at: string | null;
   account_id: string;
   student_no: string;
   name: string;
   raiseCount: number;
   answerCount: number;
   totalScore: number;
+  ratingDetails: number[];
 }
 
 /**
@@ -32,6 +34,39 @@ export interface ScoreQueryFilters {
   classId?: string;           // 班別 ID (可選)
   keyword?: string;           // 學號或姓名的關鍵字 (可選)
 }
+
+type SessionRow = {
+  id: string;
+  title: string;
+  class_id: string;
+  starts_at?: string | null;
+  classes?:
+    | { id: string; class_name: string }
+    | Array<{ id: string; class_name: string }>
+    | null;
+};
+
+type AccountDetailRow = {
+  id: string;
+  student_no: string;
+  name: string;
+  class_id: string;
+};
+
+type HandRaiseRow = {
+  id: string;
+  session_id: string;
+  account_id: string;
+  status: string;
+  accounts?: AccountDetailRow | AccountDetailRow[] | null;
+};
+
+type AnswerWithRatingsRow = {
+  id: string;
+  session_id: string;
+  account_id: string;
+  ratings?: Array<{ star: number | null }> | null;
+};
 
 /**
  * 根據角色查詢成績
@@ -63,13 +98,11 @@ export async function queryScores(
 
     // Step 1: 根據角色確定可查詢的班別範圍
     if (userRole === 'admin') {
-      // 老師可查詢所有班別
       userClasses = [];
     } else if (userRole === 'student') {
-      // 學生只能查詢自己所在的班別
       const { data: studentAccount, error: accountError } = await supabase
         .from('accounts')
-        .select('class_id')
+        .select('class_id, student_no')
         .eq('id', userId)
         .maybeSingle();
 
@@ -81,16 +114,22 @@ export async function queryScores(
         throw new Error('Student not assigned to any class');
       }
 
-      userClasses = [studentAccount.class_id];
+      // 找出同 student_no 在所有班別的 class_id
+      if (studentAccount.student_no) {
+        const { data: allAccounts } = await supabase
+          .from('accounts')
+          .select('class_id')
+          .eq('student_no', studentAccount.student_no);
+        userClasses = (allAccounts || []).map((a) => String(a.class_id)).filter(Boolean);
+      } else {
+        userClasses = [String(studentAccount.class_id)];
+      }
 
-      // 如果學生指定了不同的班別，拒絕訪問
-      if (filters.classId && !userClasses.includes(filters.classId)) {
+      if (filters.classId && !userClasses.includes(String(filters.classId))) {
         throw new Error('Access denied: not in that class');
       }
     }
 
-    // Step 2: 構建基礎查詢 - 獲取所有相關數據
-    // 需要 JOIN: classes, sessions, accounts, hand_raises, ratings
     const { data: sessionsData, error: sessionsError } = await supabase
       .from('sessions')
       .select(
@@ -98,6 +137,7 @@ export async function queryScores(
         id,
         title,
         class_id,
+        starts_at,
         classes(
           id,
           class_name
@@ -109,7 +149,6 @@ export async function queryScores(
       throw new Error(`Failed to fetch sessions: ${sessionsError.message}`);
     }
 
-    // Step 3: 獲取所有相關的舉手和評分數據
     const { data: handsData, error: handsError } = await supabase
       .from('hand_raises')
       .select(
@@ -131,55 +170,59 @@ export async function queryScores(
       throw new Error(`Failed to fetch hand raises: ${handsError.message}`);
     }
 
-    // Step 4: 獲取評分數據
-    const { data: ratingsData, error: ratingsError } = await supabase
-      .from('ratings')
-      .select(
-        `
-        hand_raise_id,
-        star,
-        hand_raises(
-          id,
-          session_id,
-          account_id
-        )
-      `
-      );
+    const { data: answersData, error: ratingsError } = await supabase
+      .from('answers')
+      .select('id, session_id, account_id, ratings(star)');
 
     if (ratingsError) {
       throw new Error(`Failed to fetch ratings: ${ratingsError.message}`);
     }
 
-    // Step 5: 處理數據 - 組合所有信息
+    // 建立 session_id+account_id → 總分 的對應表
+    const scoreMap = new Map<string, number>();
+    // 建立 session_id+account_id → 每次評分星數陣列 的對應表
+    const ratingsMap = new Map<string, number[]>();
+    ((answersData || []) as AnswerWithRatingsRow[]).forEach((answer) => {
+      const key = `${answer.session_id}-${answer.account_id}`;
+      const stars = (answer.ratings ?? []).map((r) => r.star ?? 0).filter((s) => s > 0);
+      const total = stars.reduce((sum, s) => sum + s, 0);
+      scoreMap.set(key, (scoreMap.get(key) ?? 0) + total);
+      if (stars.length > 0) {
+        ratingsMap.set(key, [...(ratingsMap.get(key) ?? []), ...stars]);
+      }
+    });
+
+    const sessionsRows = (sessionsData || []) as SessionRow[];
+    const handsRows = (handsData || []) as HandRaiseRow[];
     const resultMap = new Map<string, StudentScoreQueryResult>();
 
-    // 處理舉手記錄
-    (handsData || []).forEach((hand: any) => {
-      const session = (sessionsData || []).find((s: any) => s.id === hand.session_id);
-      const accountArray = Array.isArray(hand.accounts) ? hand.accounts : [hand.accounts];
+    handsRows.forEach((hand) => {
+      const session = sessionsRows.find((s) => s.id === hand.session_id);
+      const accountArray = Array.isArray(hand.accounts)
+        ? hand.accounts
+        : hand.accounts
+        ? [hand.accounts]
+        : [];
       const account = accountArray[0];
-      
+
       if (!account) return;
 
-      const sessionClasses = Array.isArray(session?.classes) 
-        ? session?.classes[0]
+      const sessionClasses = Array.isArray(session?.classes)
+        ? session.classes[0]
         : session?.classes;
 
-      // 角色檢查：學生只能看到自己的班別
       if (
         userRole === 'student' &&
         userClasses.length > 0 &&
-        !userClasses.includes(account.class_id)
+        !userClasses.includes(String(account.class_id))
       ) {
         return;
       }
 
-      // 班別篩選
-      if (filters.classId && account.class_id !== filters.classId) {
+      if (filters.classId && String(account.class_id) !== String(filters.classId)) {
         return;
       }
 
-      // 關鍵字篩選
       if (filters.keyword) {
         const keyword = filters.keyword.toLowerCase();
         const matchesKeyword =
@@ -198,12 +241,14 @@ export async function queryScores(
           class_name: sessionClasses?.class_name || '',
           session_id: session?.id || '',
           session_title: session?.title || '',
+          session_starts_at: session?.starts_at ?? null,
           account_id: account.id,
           student_no: account.student_no,
           name: account.name,
           raiseCount: 0,
           answerCount: 0,
-          totalScore: 0
+          totalScore: 0,
+          ratingDetails: [],
         });
       }
 
@@ -215,53 +260,30 @@ export async function queryScores(
       }
     });
 
-    // 處理評分記錄
-    (ratingsData || []).forEach((rating: any) => {
-      const handRaise = rating.hand_raises;
-      const foundHand = (handsData || []).find((h: any) => h.id === handRaise.id);
-      if (foundHand) {
-        const session = (sessionsData || []).find((s: any) => s.id === handRaise.session_id);
-        const accountArray = Array.isArray(foundHand.accounts) ? foundHand.accounts : [foundHand.accounts];
-        const account = accountArray[0];
-        
-        if (!account) return;
-        
-        const key = `${session?.id}-${account.id}`;
-
-        if (resultMap.has(key)) {
-          const result = resultMap.get(key)!;
-          result.totalScore += rating.star || 0;
-        }
+    resultMap.forEach((result, key) => {
+      result.totalScore = scoreMap.get(key) ?? 0;
+      result.ratingDetails = ratingsMap.get(key) ?? [];
+      // Sync answerCount with actual rating records to avoid discrepancy
+      if (result.ratingDetails.length > 0) {
+        result.answerCount = result.ratingDetails.length;
       }
     });
 
-    // Step 6: 返回已排序的結果
-    return Array.from(resultMap.values())
-      .sort((a, b) => {
-        // 先按班別排序
-        const classCompare = a.class_name.localeCompare(b.class_name);
-        if (classCompare !== 0) return classCompare;
+    return Array.from(resultMap.values()).sort((a, b) => {
+      const classCompare = a.class_name.localeCompare(b.class_name);
+      if (classCompare !== 0) return classCompare;
 
-        // 再按課堂 ID 排序
-        const sessionCompare = a.session_id.localeCompare(b.session_id);
-        if (sessionCompare !== 0) return sessionCompare;
+      const sessionCompare = String(a.session_id).localeCompare(String(b.session_id));
+      if (sessionCompare !== 0) return sessionCompare;
 
-        // 最後按學號排序
-        return a.student_no.localeCompare(b.student_no);
-      });
+      return a.student_no.localeCompare(b.student_no);
+    });
   } catch (error) {
     console.error('Error in queryScores:', error);
     throw error;
   }
 }
 
-/**
- * 獲取使用者可查詢的班別列表 - 老師版本
- * 
- * @param supabase - Supabase 客戶端
- * @param teacherId - 老師 ID
- * @returns 班別列表 (id, name)
- */
 export async function getTeacherClasses(
   supabase: SupabaseClient,
   teacherId: string
@@ -276,9 +298,10 @@ export async function getTeacherClasses(
       throw new Error(`Failed to fetch classes: ${error.message}`);
     }
 
-    return (classes || []).map((c: any) => ({
+    const classesRows = (classes || []) as Array<{ id: string; class_name: string }>;
+    return classesRows.map((c) => ({
       id: c.id,
-      name: c.class_name
+      name: c.class_name,
     }));
   } catch (error) {
     console.error('Error in getTeacherClasses:', error);
@@ -286,13 +309,6 @@ export async function getTeacherClasses(
   }
 }
 
-/**
- * 獲取使用者可查詢的班別列表 - 學生版本
- * 
- * @param supabase - Supabase 客戶端
- * @param studentId - 學生 ID
- * @returns 班別列表 (id, name) - 通常只有一個
- */
 export async function getStudentClasses(
   supabase: SupabaseClient,
   studentId: string
@@ -300,7 +316,7 @@ export async function getStudentClasses(
   try {
     const { data: account, error: accountError } = await supabase
       .from('accounts')
-      .select('class_id')
+      .select('class_id, student_no')
       .eq('id', studentId)
       .maybeSingle();
 
@@ -312,18 +328,30 @@ export async function getStudentClasses(
       return [];
     }
 
+    // 找出同 student_no 在所有班別的 class_id（學生可能在多個班別）
+    let classIds: unknown[] = [account.class_id];
+    if (account.student_no) {
+      const { data: allAccounts } = await supabase
+        .from('accounts')
+        .select('class_id')
+        .eq('student_no', account.student_no);
+      classIds = [...new Set((allAccounts || []).map((a) => a.class_id).filter(Boolean))];
+    }
+
     const { data: classes, error } = await supabase
       .from('classes')
       .select('id, class_name')
-      .eq('id', account.class_id);
+      .in('id', classIds)
+      .order('class_name', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to fetch class: ${error.message}`);
     }
 
-    return (classes || []).map((c: any) => ({
-      id: c.id,
-      name: c.class_name
+    const classesRows = (classes || []) as Array<{ id: string; class_name: string }>;
+    return classesRows.map((c) => ({
+      id: String(c.id),
+      name: c.class_name,
     }));
   } catch (error) {
     console.error('Error in getStudentClasses:', error);

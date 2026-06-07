@@ -11,13 +11,21 @@ const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
 const ReportModePanel = dynamic(() => import("./ReportModePanel"), { ssr: false });
 const ClassModePanel = dynamic(() => import("./ClassModePanel"), { ssr: false });
 const ScoreQueryPanel = dynamic(() => import("./ScoreQueryPanel"), { ssr: false });
+const GratitudeWallPanel = dynamic(() => import("./GratitudeWallPanel"), { ssr: false });
+
+type AuthUser = {
+  id?: string;
+  student_no: string;
+  name?: string;
+  role?: string;
+} | null;
 
 export default function AuthLayout({
   user,
   children,
   onLogout,
 }: {
-  user: { id?: string; student_no: string; name?: string; role?: string } | null;
+  user: AuthUser;
   children: React.ReactNode;
   onLogout: () => void;
 }) {
@@ -29,12 +37,14 @@ export default function AuthLayout({
       { key: "accounts", label: "帳號管理" },
       { key: "class_mode", label: "上課模式" },
       { key: "report_mode", label: "報告模式" },
+      { key: "gratitude_wall", label: "感謝牆" },
       { key: "score_query", label: "分數查詢" },
     ];
 
     const studentMenu = [
       { key: "class_mode", label: "上課模式" },
       { key: "report_mode", label: "報告模式" },
+      { key: "gratitude_wall", label: "感謝牆" },
       { key: "score_query", label: "分數查詢" },
     ];
 
@@ -120,11 +130,16 @@ export default function AuthLayout({
           <ClassModePanel user={user} />
         )}
         {active === "report_mode" && (
-          <ReportModePanel user={user as any} />
+          <ReportModePanel user={user ?? { id: '', student_no: '', role: 'student' }} />
         )}
         {active === "score_query" && (
           <div className="bg-white dark:bg-gray-800 rounded shadow-md border border-gray-200 dark:border-gray-700">
-            <ScoreQueryPanel user={user as any} />
+            <ScoreQueryPanel user={user ?? { id: '', student_no: '', role: 'student' }} />
+          </div>
+        )}
+        {active === "gratitude_wall" && (
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md border border-gray-200 dark:border-gray-700">
+            <GratitudeWallPanel user={user} />
           </div>
         )}
       </main>

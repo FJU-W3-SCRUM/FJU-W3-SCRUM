@@ -18,14 +18,14 @@ export async function GET(request: Request) {
     const { data, error } = await query.order('group_name', { ascending: true });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, groups: data });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const group_name = body.group_name as string | undefined;
     const class_id = body.class_id as number | undefined;
     if (!group_name || group_name.trim() === "") return NextResponse.json({ ok: false, error: "group_name required" }, { status: 400 });
@@ -39,21 +39,21 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.from("groups").insert([{ group_name: group_name.trim(), class_id }]).select().single();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, group: data });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const id = body.id as number | undefined;
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
 
     const { error } = await supabase.from("groups").delete().eq("id", id);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

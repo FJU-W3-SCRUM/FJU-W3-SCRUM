@@ -18,7 +18,8 @@ export async function GET(request: Request) {
 
     if (accountError) throw accountError;
     
-    const classIds = accounts.map(a => a.class_id).filter(Boolean);
+    const accountRows = (accounts || []) as Array<{ class_id: number | null }>;
+    const classIds = accountRows.map((a) => a.class_id).filter((id): id is number => Boolean(id));
 
     if (classIds.length === 0) {
       return NextResponse.json({ sessions: [] });
@@ -45,27 +46,36 @@ export async function GET(request: Request) {
 
     if (sessionError) throw sessionError;
 
-    // 3. Filter: If there are multiple active sessions for the same class, pick the one with the highest ID
-    const latestSessionsMap: Record<number, any> = {};
-    sessions.forEach((s: any) => {
+    type SessionRecord = {
+      id: number;
+      title: string;
+      status: string;
+      starts_at: string | null;
+      class_id: number;
+      classes?: { class_name?: string } | null;
+    };
+
+    const sessionRows = (sessions || []) as SessionRecord[];
+    const latestSessionsMap: Record<number, SessionRecord> = {};
+    sessionRows.forEach((s) => {
       const classId = s.class_id;
       if (!latestSessionsMap[classId] || s.id > latestSessionsMap[classId].id) {
         latestSessionsMap[classId] = s;
       }
     });
 
-    const formattedSessions = Object.values(latestSessionsMap).map((s: any) => ({
+    const formattedSessions = Object.values(latestSessionsMap).map((s) => ({
       id: s.id,
       title: s.title,
       class_name: s.classes?.class_name || '未知班級',
       status: s.status,
-      starts_at: s.starts_at
+      starts_at: s.starts_at,
     }));
 
     return NextResponse.json({ sessions: formattedSessions });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("API Error in student-sessions:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

@@ -3,7 +3,7 @@ import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const { session_id, qna_open, presenting_group_id, report_action, session_action } = body;
 
     // 1. Toggle Q&A state
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

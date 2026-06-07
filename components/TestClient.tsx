@@ -2,6 +2,12 @@
 import React from "react";
 import { useTest } from "../hooks/useTest";
 
+type TestRow = {
+  id: string;
+  text?: string | null;
+  created_at?: string | null;
+};
+
 export default function TestClient() {
   const { data, isLoading, error } = useTest();
 
@@ -32,10 +38,9 @@ export default function TestClient() {
     <div className="mt-6 w-full">
       <h3 className="text-lg font-medium">Test 資料</h3>
       <ul className="mt-2 list-disc list-inside">
-        {data.map((row: any) => (
+        {(data as TestRow[]).map((row) => (
           <li key={row.id} className="py-1">
-            <span className="font-semibold">{row.id}</span>:{" "}
-            {String(row.text ?? "(null)")}
+            <span className="font-semibold">{row.id}</span>: {String(row.text ?? "(null)")}
             <span className="ml-2 text-zinc-500">{row.created_at}</span>
           </li>
         ))}

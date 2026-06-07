@@ -7,7 +7,8 @@ export async function POST(request: Request) {
     // In a real app we'd verify the JWT user role first:
     // const { data: { user } } = await supabase.auth.getUser();
     
-    const { session_id, hand_raise_id, target_account_id, rater_account_id, stars } = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
+  const { session_id, hand_raise_id, target_account_id, rater_account_id, stars } = body;
 
     if (!session_id || !target_account_id || !stars) {
       return NextResponse.json({ error: 'Missing required fields (session_id, target_account_id, stars)' }, { status: 400 });
@@ -102,8 +103,8 @@ export async function POST(request: Request) {
       hands_updated: handsUpUpdate?.length || 0
     }, { status: 201 });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Rate API] Error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

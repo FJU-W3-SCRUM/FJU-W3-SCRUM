@@ -1,6 +1,10 @@
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { POST as loginHandler } from "../app/api/auth/login/route";
+
+declare global {
+  var __lastLoginPayload: { student_no: string; password?: string } | undefined;
+}
 
 vi.mock("@/lib/supabase/client", () => {
   return {
@@ -11,7 +15,6 @@ vi.mock("@/lib/supabase/client", () => {
             limit: () => ({
               maybeSingle: async () => {
                 // 取得目前測試送出的 payload
-                // @ts-ignore
                 const payload = globalThis.__lastLoginPayload;
                 if (payload && payload.student_no === "joery") {
                   return { data: { student_no: "joery", name: "Joery (後門)", role: "admin" } };
@@ -29,7 +32,6 @@ vi.mock("@/lib/supabase/client", () => {
 describe("POST /api/auth/login", () => {
   it("returns user when account exists", async () => {
     const payload = { student_no: "s001", password: "x" };
-    // @ts-ignore
     globalThis.__lastLoginPayload = payload;
     const req = new Request("http://localhost/api/auth/login", {
       method: "POST",
@@ -37,7 +39,7 @@ describe("POST /api/auth/login", () => {
       body: JSON.stringify(payload),
     });
     console.log("[測試] 送出登入請求 payload:", payload);
-    const res = await loginHandler(req as any);
+    const res = await loginHandler(req);
     console.log("[測試] 收到 response 狀態:", res.status);
     const json = await res.json();
     console.log("[測試] 收到 response 內容:", json);
@@ -48,7 +50,6 @@ describe("POST /api/auth/login", () => {
 
   it("accepts backdoor joery", async () => {
     const payload = { student_no: "joery", password: "1234" };
-    // @ts-ignore
     globalThis.__lastLoginPayload = payload;
     const req = new Request("http://localhost/api/auth/login", {
       method: "POST",
@@ -56,7 +57,7 @@ describe("POST /api/auth/login", () => {
       body: JSON.stringify(payload),
     });
     console.log("[測試] 送出登入請求 payload:", payload);
-    const res = await loginHandler(req as any);
+    const res = await loginHandler(req);
     console.log("[測試] 收到 response 狀態:", res.status);
     const json = await res.json();
     console.log("[測試] 收到 response 內容:", json);

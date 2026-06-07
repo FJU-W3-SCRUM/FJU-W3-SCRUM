@@ -1,14 +1,24 @@
 "use client";
 import React, { useEffect, useState } from "react";
 
+interface GroupMemberItem {
+  id: number;
+  student_no: string;
+  is_leader?: boolean;
+}
+
 export default function GroupMembersEditor({ groupId }: { groupId: number | null }) {
-  const [members, setMembers] = useState<Array<any>>([]);
+  const [members, setMembers] = useState<GroupMemberItem[]>([]);
   const [studentNo, setStudentNo] = useState("");
   const [roleAccount, setRoleAccount] = useState("");
   const [sessionId, setSessionId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (groupId) loadMembers(groupId);
+    const init = async () => {
+      if (groupId) await loadMembers(groupId);
+    };
+
+    void init();
   }, [groupId]);
 
   async function loadMembers(gid: number) {
@@ -46,7 +56,7 @@ export default function GroupMembersEditor({ groupId }: { groupId: number | null
       </div>
 
       <ul className="mb-3">
-        {members.map((m: any) => (
+        {members.map((m) => (
           <li key={m.id} className="flex justify-between py-1">
             <span>{m.student_no} {m.is_leader && <strong className="text-yellow-600">(組長)</strong>}</span>
             <button onClick={() => removeMember(m.id)} className="text-sm text-red-600">移除</button>

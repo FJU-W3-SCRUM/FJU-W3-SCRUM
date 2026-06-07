@@ -1,27 +1,47 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 interface Props {
   onImportSuccess?: () => void;
 }
 
+interface ClassOption {
+  id: number;
+  class_name: string;
+}
+
+interface ImportResult {
+  imported_count: number;
+  duplicate_count: number;
+  duplicates_detail: Array<{ row: number; student_no: string }>;
+}
+
+interface ImportErrorItem {
+  error: string;
+  line?: number;
+}
+
 export default function ImportCsvForm({ onImportSuccess }: Props) {
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
-  const [errors, setErrors] = useState<any[]>([]);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [errors, setErrors] = useState<ImportErrorItem[]>([]);
   const [classId, setClassId] = useState<string | null>(null);
-  const [classes, setClasses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
 
-  useEffect(() => {
-    loadClasses();
-  }, []);
-
-  async function loadClasses() {
+  const loadClasses = useCallback(async () => {
     const res = await fetch("/api/classes");
     const j = await res.json();
     if (j.ok) setClasses(j.classes || []);
-  }
+  }, []);
+
+  useEffect(() => {
+    const init = async () => {
+      await loadClasses();
+    };
+
+    void init();
+  }, [loadClasses]);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -154,7 +174,7 @@ export default function ImportCsvForm({ onImportSuccess }: Props) {
               <details className="mt-2">
                 <summary className="cursor-pointer">查看重複學號</summary>
                 <ul className="mt-2 ml-4 text-xs">
-                  {result.duplicates_detail.map((dup: any, idx: number) => (
+                  {result.duplicates_detail.map((dup, idx) => (
                     <li key={idx}>第 {dup.row} 行: {dup.student_no}</li>
                   ))}
                 </ul>

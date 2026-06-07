@@ -8,7 +8,7 @@ export interface HandsUpQueueProps {
      raised_at: string;
      status: string;
   }>;
-  membersMap: Record<string, any>; // mapping accountId -> member info
+  membersMap: Record<string, { name: string; group?: { name: string } | null } | undefined>;
   canManage: boolean;              // true if teacher/presenter
   qnaOpen?: boolean;               // is qna available right now?
   onRaiseHand: () => void;

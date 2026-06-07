@@ -3,7 +3,7 @@ import { GET as groupsGet, POST as groupsPost } from "../app/api/groups/route";
 
 vi.mock("@/lib/supabase/client", () => ({
   default: {
-    from: (table: string) => ({
+    from: () => ({
       select: (columns?: string) => {
         // 如果查詢 id 欄位，模擬查無重複群組名稱
         if (columns === "id") {
@@ -57,7 +57,7 @@ describe("groups API", () => {
     const payload = { group_name: "New", class_id: 1 };
     console.debug("[測試] 建立群組 payload:", payload);
     const req = new Request("http://localhost/api/groups", { method: "POST", body: JSON.stringify(payload) });
-    const res = await groupsPost(req as any);
+    const res = await groupsPost(req);
     console.debug("[測試] POST response 狀態:", res.status);
     const json = await res.json();
     console.debug("[測試] POST response 內容:", json);

@@ -22,7 +22,7 @@ describe("session_roles API", () => {
     const payload = { session_id: 1, account_id: 's001', role: 'group_leader' };
     console.debug("[測試] 指派角色 payload:", payload);
     const req = new Request("http://localhost/api/session_roles", { method: "POST", body: JSON.stringify(payload) });
-    const res = await rolesPost(req as any);
+    const res = await rolesPost(req);
     console.debug("[測試] 指派角色 response 狀態:", res.status);
     const json = await res.json();
     console.debug("[測試] 指派角色 response 內容:", json);

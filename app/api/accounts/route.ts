@@ -46,13 +46,22 @@ export async function GET(request: Request) {
     }
 
     // Create a map for fast lookup
-    const classMap = new Map();
-    (classesData || []).forEach((c: any) => {
+    const classes = (classesData || []) as Array<{ id: number; class_name: string }>;
+    const classMap = new Map<number, string>();
+    classes.forEach((c) => {
       classMap.set(c.id, c.class_name);
     });
 
     // Transform data - manually join with class_name
-    const accounts = (accountsData || []).map((a: any) => ({
+    const accounts = (accountsData || []) as Array<{
+      id: number;
+      student_no: string;
+      name: string;
+      email: string;
+      role: string;
+      class_id: number | null;
+    }>;
+    const formattedAccounts = accounts.map((a) => ({
       id: a.id,
       student_no: a.student_no,
       name: a.name,
@@ -67,28 +76,28 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ 
       ok: true, 
-      accounts, 
+      accounts: formattedAccounts, 
       totalCount,
       totalPages,
       page,
       pageSize: page_size
     });
-  } catch (e: any) {
-    console.error("GET /api/accounts error:", e);
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (err: unknown) {
+    console.error("GET /api/accounts error:", err);
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const { student_no, name, email, role } = body;
     if (!student_no || !name) return NextResponse.json({ ok: false, error: "student_no and name required" }, { status: 400 });
     const emailFinal = email && email.trim() !== "" ? email : `${student_no}@cloud.fju.edu.tw`;
     const { data, error } = await supabase.from("accounts").insert([{ student_no, name, email: emailFinal, role: role ?? 'student' }]).select().single();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, account: data });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

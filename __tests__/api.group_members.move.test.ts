@@ -27,14 +27,14 @@ describe("group_members move flow", () => {
   it("DELETE existing member then POST new member (simulate move)", async () => {
     // Simulate deleting member (move out of group 1)
     const delReq = new Request("http://localhost/api/group_members", { method: "DELETE", body: JSON.stringify({ id: 456 }) });
-    const delRes = await membersDelete(delReq as any);
+    const delRes = await membersDelete(delReq);
     const delJson = await delRes.json();
     expect(delJson).toBeDefined();
     expect(delJson.ok).toBeTruthy();
 
     // Simulate adding member to group 3
     const postReq = new Request("http://localhost/api/group_members", { method: "POST", body: JSON.stringify({ group_id: 3, student_no: "S001" }) });
-    const postRes = await membersPost(postReq as any);
+    const postRes = await membersPost(postReq);
     const postJson = await postRes.json();
     expect(postJson).toBeDefined();
     expect(postJson.ok).toBeTruthy();

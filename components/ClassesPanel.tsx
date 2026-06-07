@@ -1,19 +1,27 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+
+interface ClassItem {
+  id: number;
+  class_name: string;
+  year?: number;
+}
 
 export default function ClassesPanel() {
-  const [classes, setClasses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<ClassItem[]>([]);
   const [name, setName] = useState("");
   const [year, setYear] = useState<number | "">(new Date().getFullYear());
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     const res = await fetch("/api/classes");
     const j = await res.json();
     if (j.ok) setClasses(j.classes || []);
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function createClass() {
     setError(null);

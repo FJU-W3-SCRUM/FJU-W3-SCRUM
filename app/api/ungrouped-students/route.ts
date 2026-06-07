@@ -41,7 +41,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: groupsError.message }, { status: 500 });
     }
 
-    const groupIds = (groupsInClass || []).map((g: any) => g.id);
+    const groups = (groupsInClass || []) as Array<{ id: number }>;
+    const groupIds = groups.map((g) => g.id);
 
     let groupedStudentNos = new Set<string>();
     if (groupIds.length > 0) {
@@ -55,19 +56,21 @@ export async function GET(request: Request) {
         return NextResponse.json({ ok: false, error: groupError.message }, { status: 500 });
       }
 
-      groupedStudentNos = new Set((groupMembers || []).map((gm: any) => gm.student_no));
+      const groupMemberRows = (groupMembers || []) as Array<{ student_no: string }>;
+      groupedStudentNos = new Set(groupMemberRows.map((gm) => gm.student_no));
     }
 
     // Filter students NOT in group (NOT EXISTS logic)
-    const ungroupedStudents = allClassStudents.filter(
-      (student: any) => !groupedStudentNos.has(student.student_no)
+    const classStudents = (allClassStudents || []) as Array<{ student_no: string; name: string }>;
+    const ungroupedStudents = classStudents.filter(
+      (student) => !groupedStudentNos.has(student.student_no)
     );
 
     console.log(`Class ${class_id}, Group ${group_id}: Total=${allClassStudents.length}, Grouped=${groupedStudentNos.size}, Ungrouped=${ungroupedStudents.length}`);
 
     return NextResponse.json({ ok: true, students: ungroupedStudents });
-  } catch (e: any) {
-    console.error("Error:", e);
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (err: unknown) {
+    console.error("Error:", err);
+    return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }

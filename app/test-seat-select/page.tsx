@@ -7,7 +7,7 @@ export default function TestSeatSelectPage() {
   const [accountId, setAccountId] = useState('');
   const [row, setRow] = useState('0');
   const [col, setCol] = useState('0');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleTest = async () => {

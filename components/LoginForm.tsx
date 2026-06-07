@@ -14,8 +14,19 @@ export default function LoginForm({
 }) {
   const [studentNo, setStudentNo] = useState("");
   const [password, setPassword] = useState("");
-  const [captchaCode, setCaptchaCode] = useState("");
+  const [captchaCode, setCaptchaCode] = useState<string>("");
   const [captchaInput, setCaptchaInput] = useState("");
+
+  const refreshCaptcha = () => {
+    const digits = Array.from({ length: 10 }, (_, i) => String(i));
+    for (let i = digits.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [digits[i], digits[j]] = [digits[j], digits[i]];
+    }
+    setCaptchaCode(digits.slice(0, 6).join(""));
+  };
+
+  useEffect(() => { refreshCaptcha(); }, []);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -52,15 +63,6 @@ export default function LoginForm({
       });
   }
 
-  useEffect(() => {
-    // generate 6-digit non-repeating CAPTCHA (digits)
-    const digits = Array.from({ length: 10 }, (_, i) => String(i));
-    for (let i = digits.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [digits[i], digits[j]] = [digits[j], digits[i]];
-    }
-    setCaptchaCode(digits.slice(0, 6).join(''));
-  }, []);
 
   return (
     <form
@@ -92,15 +94,7 @@ export default function LoginForm({
       <label className="block text-sm mb-1 font-medium text-gray-700 dark:text-gray-300">驗證碼 (CAPTCHA)</label>
       <div className="flex items-center gap-2 mb-2">
         <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 rounded font-mono tracking-widest text-lg">{captchaCode}</div>
-        <button type="button" onClick={() => {
-          // regenerate
-          const digits = Array.from({ length: 10 }, (_, i) => String(i));
-          for (let i = digits.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [digits[i], digits[j]] = [digits[j], digits[i]];
-          }
-          setCaptchaCode(digits.slice(0, 6).join(''));
-        }} className="px-2 py-1 bg-blue-100 rounded text-sm">重新產生</button>
+        <button type="button" onClick={refreshCaptcha} className="px-2 py-1 bg-blue-100 rounded text-sm">重新產生</button>
       </div>
       <input
         value={captchaInput}

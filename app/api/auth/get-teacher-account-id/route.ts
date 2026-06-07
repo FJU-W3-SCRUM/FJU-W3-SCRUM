@@ -75,10 +75,10 @@ export async function GET(request: Request) {
       teacher_name: teacherAccount?.name || '未知老師'
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[get-teacher-account-id] Error:', err);
     return NextResponse.json(
-      { error: err.message || 'Internal server error' },
+      { error: err instanceof Error ? err.message : String(err) || 'Internal server error' },
       { status: 500 }
     );
   }

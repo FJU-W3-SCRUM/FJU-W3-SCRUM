@@ -12,10 +12,19 @@ interface ReportModePanelProps {
   };
 }
 
+interface SupabaseSessionRow {
+  id: string;
+  title: string;
+  status: string;
+  starts_at: string;
+  class_id: string | number;
+  classes?: { class_name?: string };
+}
+
 export default function ReportModePanel({ user }: ReportModePanelProps) {
   const router = useRouter();
   const role = user?.role?.toLowerCase() || "student";
-  const accountId = user?.id || null;
+  const studentNo = user?.student_no;
 
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState<{ id: string; class_name: string }[]>([]);
@@ -23,22 +32,28 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
   const [groups, setGroups] = useState<{ id: string; group_name: string }[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   
-  const [availableSessions, setAvailableSessions] = useState<any[]>([]);
+  const [availableSessions, setAvailableSessions] = useState<{
+    id: string;
+    title: string;
+    class_name: string;
+    status: string;
+    starts_at: string;
+  }[]>([]);
   const [message, setMessage] = useState("");
   const [maxPoint, setMaxPoint] = useState<number>(15);
 
   // ============================
   // Student Flow
   // ============================
-  const fetchStudentSessions = async () => {
-    if (!user?.student_no && role !== "admin" && role !== "teacher") return;
+  const fetchStudentSessions = React.useCallback(async () => {
+    if (!studentNo && role !== "admin" && role !== "teacher") return;
     try {
       setLoading(true);
       
       let url = '/api/hands-up/student-sessions';
       // For students, use student_no
       if (role === "student") {
-        url += `?student_no=${user.student_no}`;
+        url += `?student_no=${studentNo}`;
       } else {
         // For teacher/admin, fetch all active sessions from their classes
         const { data: classes, error: classError } = await supabase
@@ -47,7 +62,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
         
         if (classError) throw classError;
         
-        const classIds = classes?.map(c => c.id) || [];
+        const classIds = classes?.map((c) => c.id) || [];
         if (classIds.length === 0) {
           setAvailableSessions([]);
           setLoading(false);
@@ -73,21 +88,21 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
         
         if (sessionError) throw sessionError;
         
-        // Filter: keep only the latest session per class
-        const latestSessionsMap: Record<number, any> = {};
-        sessions?.forEach((s: any) => {
-          const classId = s.class_id;
+        const latestSessionsMap: Record<string, SupabaseSessionRow> = {};
+        (sessions || []).forEach((s) => {
+          if (!s) return;
+          const classId = String(s.class_id);
           if (!latestSessionsMap[classId] || s.id > latestSessionsMap[classId].id) {
-            latestSessionsMap[classId] = s;
+            latestSessionsMap[classId] = s as SupabaseSessionRow;
           }
         });
         
-        const formattedSessions = Object.values(latestSessionsMap).map((s: any) => ({
+        const formattedSessions = Object.values(latestSessionsMap).map((s) => ({
           id: s.id,
           title: s.title,
           class_name: s.classes?.class_name || '未知班級',
           status: s.status,
-          starts_at: s.starts_at
+          starts_at: s.starts_at,
         }));
         
         setAvailableSessions(formattedSessions);
@@ -104,18 +119,18 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
       if (data.sessions?.length === 0) {
         setMessage("目前沒有進行中的報告模式，請稍候再試。");
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
       setMessage("系統發生錯誤，無法取得課堂資訊。");
     } finally {
       setLoading(false);
     }
-  };
+  }, [role, studentNo]);
 
   // ============================
   // Teacher Flow
   // ============================
-  const fetchTeacherClasses = async () => {
+  const fetchTeacherClasses = React.useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("classes")
@@ -127,14 +142,14 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
       if (data && data.length > 0) {
         setSelectedClassId(data[0].id.toString());
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadGroupsByClass = async (classId: string) => {
+  const loadGroupsByClass = React.useCallback(async (classId: string) => {
     if (!classId) return;
     try {
       const { data, error } = await supabase
@@ -150,27 +165,33 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
       } else {
         setSelectedGroupId("");
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (role === "student") {
-       fetchStudentSessions();
-    } else {
-       // Teacher/Admin: load both classes for creating sessions AND existing sessions for quick entry
-       fetchTeacherClasses();
-       // Also load existing sessions that teacher can enter
-       fetchStudentSessions();
-    }
-  }, [role, user?.student_no]);
+    const init = async () => {
+      if (role === "student") {
+        await fetchStudentSessions();
+      } else {
+        // Teacher/Admin: load both classes for creating sessions AND existing sessions for quick entry
+        await Promise.all([fetchTeacherClasses(), fetchStudentSessions()]);
+      }
+    };
+
+    void init();
+  }, [role, studentNo, fetchStudentSessions, fetchTeacherClasses]);
 
   useEffect(() => {
-    if (selectedClassId) {
-      loadGroupsByClass(selectedClassId);
-    }
-  }, [selectedClassId]);
+    const fetchClassGroups = async () => {
+      if (selectedClassId) {
+        await loadGroupsByClass(selectedClassId);
+      }
+    };
+
+    void fetchClassGroups();
+  }, [selectedClassId, loadGroupsByClass]);
 
   const handleStartSession = async () => {
     if (!user || !user.student_no) {
@@ -261,7 +282,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
                 <div className="flex justify-between items-start">
                    <div>
                       <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200 group-hover:text-blue-600">{s.class_name}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title} ({s.id})</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title}</p>
                    </div>
                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded">
                       正在進行中
@@ -309,7 +330,7 @@ export default function ReportModePanel({ user }: ReportModePanelProps) {
                 <div className="flex justify-between items-start">
                    <div>
                       <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200 group-hover:text-blue-600">{s.class_name}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title} ({s.id})</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{s.title}</p>
                    </div>
                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded">
                       正在進行中

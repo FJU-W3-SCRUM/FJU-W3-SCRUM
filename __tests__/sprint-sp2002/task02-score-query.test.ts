@@ -9,7 +9,7 @@
  *   - 學生：只能查詢同班成績
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 interface StudentScoreQueryResult {
   class_id: string;
@@ -468,7 +468,7 @@ describe('Task02: Score Query Feature (分數查詢功能)', () => {
 
       // Act
       const keyword = "%_'\\";
-      const result = await mockService.queryScores(teacherId, 'admin', {
+      await mockService.queryScores(teacherId, 'admin', {
         keyword
       });
 

@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 export default function ImportPage() {
   const [fileText, setFileText] = useState('');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];

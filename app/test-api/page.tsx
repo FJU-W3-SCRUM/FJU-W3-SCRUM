@@ -17,8 +17,9 @@ export default function TestApiPage() {
       });
       const text = await res.text();
       setResponse(text);
-    } catch (error: any) {
-      setResponse(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setResponse(`Error: ${message}`);
     } finally {
       setLoading(false);
     }

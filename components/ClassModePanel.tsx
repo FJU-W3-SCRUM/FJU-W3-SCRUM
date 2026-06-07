@@ -4,13 +4,28 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
-export default function ClassModePanel({ user }: { user: any }) {
+interface ClassModeUser {
+  role?: string;
+}
+
+interface ClassModeSession {
+  id: string;
+  title: string;
+  class_name?: string;
+}
+
+interface TeacherClass {
+  id: number;
+  class_name: string;
+}
+
+export default function ClassModePanel({ user }: { user: ClassModeUser }) {
   const router = useRouter();
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<ClassModeSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Teacher UI state
-  const [classes, setClasses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [title, setTitle] = useState<string>(`課堂互動 - ${new Date().toLocaleDateString()}`);
 
@@ -83,7 +98,7 @@ export default function ClassModePanel({ user }: { user: any }) {
           <p className="text-sm text-gray-500">目前沒有可加入的上課模式課程。</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sessions.map((s: any) => (
+            {sessions.map((s) => (
               <div key={s.id} className="p-3 border rounded hover:shadow cursor-pointer bg-gray-50 dark:bg-gray-900" onClick={() => router.push(`/sessions/${s.id}?mode=class`)}>
                 <div className="flex justify-between items-start">
                   <div>

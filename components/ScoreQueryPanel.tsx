@@ -9,7 +9,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import type { StudentScoreQueryResult } from "@/lib/services/score-query-service";
 
 interface ScoreQueryPanelProps {
@@ -38,12 +38,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string>("");
 
-  // Load available classes for user
-  useEffect(() => {
-    loadClasses();
-  }, [role, userId]);
-
-  const loadClasses = async () => {
+  const loadClasses = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -73,13 +68,22 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
       if (data.data && data.data.length > 0) {
         setSelectedClassId(data.data[0].id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error("Error loading classes:", err);
-      setError(err.message || "無法加載班級列表");
+      setError(message || "無法加載班級列表");
     } finally {
       setLoading(false);
     }
-  };
+  }, [role, userId]);
+
+  useEffect(() => {
+    const init = async () => {
+      await loadClasses();
+    };
+
+    void init();
+  }, [loadClasses]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,9 +114,10 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
       if (data.data && data.data.length === 0) {
         setError("查無符合條件的記錄");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error("Error searching scores:", err);
-      setError(err.message || "查詢失敗");
+      setError(message || "查詢失敗");
       setResults([]);
     } finally {
       setIsSearching(false);
@@ -143,6 +148,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
             id: result.session_id,
             title: result.session_title,
             class_name: result.class_name,
+            starts_at: result.session_starts_at,
           },
           students: [],
         };
@@ -157,10 +163,26 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
           id: string;
           title: string;
           class_name: string;
+          starts_at: string | null;
         };
         students: StudentScoreQueryResult[];
       }
     >
+  );
+
+  // Assign sequential index to sessions sharing the same date+class
+  const dateClassCount: Record<string, number> = {};
+  const sessionDateIndex: Record<string, number> = {};
+  Object.entries(groupedBySession).forEach(([sid, g]) => {
+    const dateStr = g.session.starts_at
+      ? new Date(g.session.starts_at).toLocaleDateString('zh-TW')
+      : g.session.title;
+    const key = `${g.session.class_name}::${dateStr}`;
+    dateClassCount[key] = (dateClassCount[key] ?? 0) + 1;
+    sessionDateIndex[sid] = dateClassCount[key];
+  });
+  const duplicateDateKeys = new Set(
+    Object.entries(dateClassCount).filter(([, c]) => c > 1).map(([k]) => k)
   );
 
   return (
@@ -254,12 +276,24 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
           </div>
         ) : (
           <div className="space-y-6">
-            {Object.entries(groupedBySession).map(([sessionId, group]) => (
+            {Object.entries(groupedBySession).map(([sessionId, group]) => {
+              const dateStr = group.session.starts_at
+                ? new Date(group.session.starts_at).toLocaleDateString('zh-TW')
+                : null;
+              const dateKey = `${group.session.class_name}::${dateStr ?? group.session.title}`;
+              const isDuplicate = duplicateDateKeys.has(dateKey);
+              const sessionIdx = sessionDateIndex[sessionId];
+              const sessionIdxStr = String(sessionIdx).padStart(2, '0');
+              const sessionLabel = isDuplicate
+                ? `${group.session.title}-${sessionIdxStr}`
+                : group.session.title;
+
+              return (
               <div key={sessionId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                 {/* Session Header */}
                 <div className="bg-blue-50 dark:bg-blue-900 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                   <p className="font-semibold text-blue-900 dark:text-blue-100">
-                    {group.session.class_name} - {group.session.title}
+                    {group.session.class_name} - {sessionLabel}
                   </p>
                 </div>
 
@@ -290,35 +324,55 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
                     </thead>
                     <tbody>
                       {group.students.map((student, idx) => (
-                        <tr
-                          key={`${student.account_id}-${idx}`}
-                          className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                            {student.class_name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
-                            {student.student_no}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                            {student.name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20">
-                            {student.raiseCount}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-green-50 dark:bg-green-900/20">
-                            {student.answerCount}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
-                            ⭐ {student.totalScore}
-                          </td>
-                        </tr>
+                        <React.Fragment key={`${student.account_id}-${idx}`}>
+                          <tr className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                              {student.class_name}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 font-medium">
+                              {student.student_no}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                              {student.name}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20">
+                              {student.raiseCount}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-700 dark:text-gray-300 bg-green-50 dark:bg-green-900/20">
+                              {student.answerCount}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20">
+                              ⭐ {student.totalScore}
+                            </td>
+                          </tr>
+                          {student.ratingDetails && student.ratingDetails.length > 0 && (
+                            <tr className="border-t border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-900/10">
+                              <td colSpan={6} className="px-6 py-2">
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium text-amber-700 dark:text-amber-400">
+                                    評分明細
+                                    {dateStr && <span className="ml-1 text-gray-400 font-normal">({dateStr}{isDuplicate ? `-${sessionIdxStr}` : ''})</span>}：
+                                  </span>
+                                  {student.ratingDetails.map((stars, i) => (
+                                    <span
+                                      key={i}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 rounded font-medium"
+                                    >
+                                      第 {i + 1} 次：{'⭐'.repeat(stars)} {stars} 星
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

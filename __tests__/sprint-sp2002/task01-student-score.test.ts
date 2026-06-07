@@ -7,7 +7,7 @@
  * - score: 評點分數 (ratings.star 加總)
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 /**
  * 計算學生發言統計的數據模型

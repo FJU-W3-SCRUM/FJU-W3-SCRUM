@@ -34,24 +34,13 @@ export default function GroupMembersWithScores({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
-  // Load scores for all group members
-  useEffect(() => {
-    if (!sessionId || members.length === 0) {
-      setLoading(false);
-      return;
-    }
-
-    loadScores();
-  }, [sessionId, members]);
-
-  const loadScores = async () => {
+  const loadScores = React.useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
       const newScores = new Map<string, StudentScoreData>();
 
-      // Fetch scores for each member
       for (const member of members) {
         try {
           const response = await fetch(
@@ -68,13 +57,27 @@ export default function GroupMembersWithScores({
       }
 
       setScores(newScores);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error loading scores:", err);
       setError("無法加載分數統計");
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId, members]);
+
+  useEffect(() => {
+    const fetchScores = async () => {
+      if (!sessionId || members.length === 0) {
+        setScores(new Map());
+        setLoading(false);
+        return;
+      }
+
+      await loadScores();
+    };
+
+    void fetchScores();
+  }, [sessionId, members, loadScores]);
 
   const formatScoreDisplay = (member: GroupMember): string => {
     const score = scores.get(member.account_id);

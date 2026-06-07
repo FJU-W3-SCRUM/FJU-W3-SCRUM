@@ -27,12 +27,12 @@ export default function ClassOverview({ members, presentingGroupId, onRate, sess
 
   // Load scores for all members when component mounts or sessionId changes
   useEffect(() => {
-    if (!sessionId || members.length === 0) {
-      setScores(new Map());
-      return;
-    }
-
     const loadScores = async () => {
+      if (!sessionId || members.length === 0) {
+        setScores(new Map());
+        return;
+      }
+
       try {
         setLoadingScores(true);
         const newScores = new Map<string, StudentScoreData>();
@@ -54,14 +54,14 @@ export default function ClassOverview({ members, presentingGroupId, onRate, sess
         }
 
         setScores(newScores);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Error loading scores:", err);
       } finally {
         setLoadingScores(false);
       }
     };
 
-    loadScores();
+    void loadScores();
   }, [sessionId, members]);
   // Grouping members by `group.id` and sorting
   const groupedMembers = useMemo(() => {

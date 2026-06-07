@@ -11,22 +11,42 @@ export default function GroupsPanel() {
   const [classes, setClasses] = useState<{id:number,class_name:string}[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
 
-  async function loadGroups() {
-    const qs = selectedClassId ? `?class_id=${selectedClassId}` : '';
+  const loadGroups = React.useCallback(async () => {
+    const qs = selectedClassId ? `?class_id=${selectedClassId}` : "";
     const res = await fetch(`/api/groups${qs}`);
     const j = await res.json();
     if (j.ok) setGroups(j.groups || []);
-  }
+  }, [selectedClassId]);
 
-  async function loadClasses() {
-    const res = await fetch('/api/classes');
+  const loadClasses = React.useCallback(async () => {
+    const res = await fetch("/api/classes");
     const j = await res.json();
     if (j.ok) setClasses(j.classes || []);
-  }
+  }, []);
 
-  useEffect(() => { loadGroups(); }, []);
-  useEffect(() => { loadClasses(); }, []);
-  useEffect(() => { loadGroups(); }, [selectedClassId]);
+  useEffect(() => {
+    const fetchGroups = async () => {
+      await loadGroups();
+    };
+
+    void fetchGroups();
+  }, [loadGroups]);
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      await loadClasses();
+    };
+
+    void fetchClasses();
+  }, [loadClasses]);
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      await loadGroups();
+    };
+
+    void fetchGroups();
+  }, [selectedClassId, loadGroups]);
 
   async function createGroup() {
     setError(null);
@@ -38,7 +58,7 @@ export default function GroupsPanel() {
       setError("請輸入組別名稱");
       return;
     }
-    const payload: any = { group_name: newName.trim(), class_id: selectedClassId };
+    const payload = { group_name: newName.trim(), class_id: selectedClassId };
     const res = await fetch("/api/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const j = await res.json();
     if (j.ok) { setNewName(""); loadGroups(); }

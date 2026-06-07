@@ -6,7 +6,37 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABAS
 
 // Service role / admin key for server-side operations (RPC, elevated ops)
 const adminUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+type SupabaseClientLike = ReturnType<typeof createClient>;
+
+function createSafeClient(url: string, key: string) {
+  if (!url || !key) {
+    const missing = () => {
+      throw new Error("Supabase is not configured. Set SUPABASE_URL and the appropriate API keys.");
+    };
+
+    return new Proxy({} as Record<string, unknown>, {
+      get(_target, prop: string | symbol) {
+        if (prop === "removeChannel") {
+          return () => {};
+        }
+
+        if (prop === "auth") {
+          return new Proxy({}, {
+            get() {
+              return missing;
+            },
+          });
+        }
+
+        return missing;
+      },
+    }) as unknown as SupabaseClientLike;
+  }
+
+  return createClient(url, key);
+}
 
 if (!anonUrl || !anonKey) {
   console.warn("Warning: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY not set. Frontend supabase client may not work.");
@@ -17,10 +47,10 @@ if (!adminUrl || !adminKey) {
 }
 
 // Public (anon) client for frontend usage
-export const supabase = createClient(anonUrl, anonKey);
+export const supabase = createSafeClient(anonUrl, anonKey);
 
 // Admin client for server-side operations (use service role key)
-export const supabaseAdmin = createClient(adminUrl, adminKey);
+export const supabaseAdmin = createSafeClient(adminUrl, adminKey);
 
 // Default export kept as admin client so server-side imports that use default get elevated client
 export default supabaseAdmin;

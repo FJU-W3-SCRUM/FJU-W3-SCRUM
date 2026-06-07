@@ -17,7 +17,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 describe('Hands-Up Real-time Sync (WebSocket + Polling)', () => {
   const testSessionId = '123';
   const testUserId = 'user-001';
-  const testUserId2 = 'user-002';
+
+  interface MockHandRaise {
+    id?: number;
+    account_id: string;
+    status: string;
+    raised_at?: string;
+  }
 
   // Mock configuration
   beforeEach(() => {
@@ -33,7 +39,7 @@ describe('Hands-Up Real-time Sync (WebSocket + Polling)', () => {
       
       // Mock initial state
       let studentAHand = false;
-      let sharedQueue: any[] = [];
+      const sharedQueue: MockHandRaise[] = [];
       
       // Simulate student A raising hand
       const raiseHandPayload = {
@@ -140,9 +146,9 @@ describe('Hands-Up Real-time Sync (WebSocket + Polling)', () => {
       console.log(`     3. Group Leader puts down hand`);
       console.log(`   - Expected: All 5 clients see same queue state`);
       
-      let teacherQueue: any[] = [];
-      let leaderQueue: any[] = [];
-      let studentQueue: any[] = [];
+      let teacherQueue: MockHandRaise[] = [];
+      let leaderQueue: MockHandRaise[] = [];
+      let studentQueue: MockHandRaise[] = [];
       
       // Student A raises
       teacherQueue.push({ id: 1, account_id: 'student-a', status: 'R' });
@@ -178,7 +184,6 @@ describe('Hands-Up Real-time Sync (WebSocket + Polling)', () => {
       console.log(`   - Setup: startPolling() enabled for 3000ms after operation`);
       console.log(`   - Expected: Polling delivers update within 800ms cycles`);
       
-      const operationTime = Date.now();
       const pollingInterval = 800;
       const pollingDuration = 3000;
       

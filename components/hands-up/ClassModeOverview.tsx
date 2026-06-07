@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 
 export interface ClassMember {
   id: string;
@@ -17,6 +17,8 @@ interface Props {
   members: ClassMember[];
   sessionId?: string;
   currentUserAccountId?: string;
+  currentUserName?: string;
+  currentUserStudentNo?: string;
   canManage?: boolean;
   refresh?: () => void;
   startPolling?: () => void;
@@ -24,37 +26,37 @@ interface Props {
 }
 import { useRouter } from 'next/navigation';
 
-export default function ClassModeOverview({ members, sessionId, currentUserAccountId, canManage, refresh, startPolling }: Props) {
+export default function ClassModeOverview({ members, sessionId, currentUserAccountId, currentUserName, currentUserStudentNo, canManage, refresh, startPolling, selectionDisabled }: Props) {
   const router = useRouter();
-  const { selectionDisabled } = arguments[0] as Props;
-  const [flipped, setFlipped] = useState<boolean>(false);
-  const [mirroredLR, setMirroredLR] = useState<boolean>(false);
+  const [flipped, setFlipped] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('classmode_orientation_flipped') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [mirroredLR, setMirroredLR] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('classmode_mirror_lr') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [overrides, setOverrides] = useState<Record<string, ClassMember>>({});
   const [loadingSeat, setLoadingSeat] = useState<string | null>(null);
-  const [tentativeSeat, setTentativeSeat] = useState<{row:number,col:number} | null>(null);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('classmode_orientation_flipped');
-      setFlipped(saved === '1');
-    } catch (e) {}
-    try {
-      const savedLR = localStorage.getItem('classmode_mirror_lr');
-      setMirroredLR(savedLR === '1');
-    } catch (e) {}
-  }, []);
+  const [confirmSeat, setConfirmSeat] = useState<{row:number,col:number} | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const toggleFlip = () => {
     const next = !flipped;
     setFlipped(next);
-    // 合併左右鏡像：同時切換左右鏡像狀態並儲存
     setMirroredLR(next);
     try { localStorage.setItem('classmode_orientation_flipped', next ? '1' : '0'); } catch(e){}
     try { localStorage.setItem('classmode_mirror_lr', next ? '1' : '0'); } catch(e){}
   };
 
-  // derive grid size
-  // fixed 3-4-3 layout => total 10 columns
   const totalCols = 10;
   const leftCols = [0,1,2];
   const middleCols = [3,4,5,6];
@@ -74,45 +76,43 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
     return { maxRow, seatMap: map };
   }, [members]);
 
-  // click to select tentative seat (client-side only)
   const onSeatClick = (row: number, col: number) => {
     if (!sessionId || !currentUserAccountId) return;
-    if (selectionDisabled) return; // don't allow tentative when selection disabled
+    if (selectionDisabled) return;
     const key = `${row}:${col}`;
 
-    // If seat is occupied by someone else, do nothing
     const occupant = seatMap[key];
     if (occupant && String(occupant.id) !== String(currentUserAccountId)) {
       alert('此座位已被佔用');
       return;
     }
 
-    // If user already has a confirmed seat, disallow selecting another
     const myConfirmed = Object.values(seatMap).find(s => String(s.id) === String(currentUserAccountId));
     if (myConfirmed && !(myConfirmed.seat_row === row && myConfirmed.seat_col === col)) {
       alert('你已確認一個座位，若要變更請先聯絡老師或管理者');
       return;
     }
 
-    // toggle tentative
-    setTentativeSeat(prev => {
-      if (prev && prev.row === row && prev.col === col) return null;
-      return { row, col };
-    });
+    setConfirmSeat({ row, col });
   };
 
-  const confirmTentativeSeat = async () => {
-    if (!tentativeSeat || !sessionId || !currentUserAccountId) return;
+  const confirmSeatSelection = async () => {
+    if (!confirmSeat || !sessionId || !currentUserAccountId) return;
     if (selectionDisabled) return;
-    const { row, col } = tentativeSeat;
+    const { row, col } = confirmSeat;
     const key = `${row}:${col}`;
     if (loadingSeat) return;
 
     const me = members.find(m => String(m.id) === String(currentUserAccountId));
-    const optimistic: ClassMember = me ? { ...me, seat_row: row, seat_col: col } : { id: String(currentUserAccountId || ''), name: '我', student_no: '', is_leader: false, seat_row: row, seat_col: col, hand_raised: false };
+    const myName = me?.name || currentUserName || '我';
+    const myStudentNo = me?.student_no || currentUserStudentNo || '';
+    const optimistic: ClassMember = me
+      ? { ...me, seat_row: row, seat_col: col }
+      : { id: String(currentUserAccountId || ''), name: myName, student_no: myStudentNo, is_leader: false, seat_row: row, seat_col: col, hand_raised: false };
 
     try {
       setLoadingSeat(key);
+      setConfirmSeat(null);
       setOverrides(prev => ({ ...prev, [key]: optimistic }));
 
       const res = await fetch('/api/class-mode/select-seat', {
@@ -123,65 +123,83 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: '選位失敗' }));
-        throw new Error(err.error || '選位失敗');
+        throw new Error((err as { error?: string }).error || '選位失敗');
       }
 
-      // confirmed — clear tentative and refresh after short delay
-      setTentativeSeat(null);
       setTimeout(() => { if (refresh) refresh(); }, 500);
-      // trigger aggressive polling so other clients update quickly
       try { if (startPolling) startPolling(); } catch(e) {}
-      // redirect to page 3 (read-only view)
       try { router.push(`/sessions/${sessionId}?mode=class&page=3`); } catch(e) {}
       alert('座位已確認，將轉向唯讀頁面');
-    } catch (e: any) {
+    } catch (e: unknown) {
       setOverrides(prev => { const copy = { ...prev }; delete copy[key]; return copy; });
-      alert(e?.message || '確認座位發生錯誤');
+      alert(e instanceof Error ? e.message : '確認座位發生錯誤');
     } finally {
       setLoadingSeat(null);
     }
   };
 
-  const cancelTentativeSeat = () => setTentativeSeat(null);
-
   return (
     <div className="flex flex-col gap-4">
+      {/* Confirmation modal */}
+      {confirmSeat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-80 flex flex-col gap-4">
+            <h3 className="text-lg font-bold text-gray-900">確認選擇座位</h3>
+            <p className="text-sm text-gray-700">
+              你將選擇第 <strong>{confirmSeat.row + 1}</strong> 排、第 <strong>{confirmSeat.col + 1}</strong> 個位置。
+            </p>
+            <p className="text-sm text-gray-500">選定後無法自行變更，確定嗎？</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmSeat(null)}
+                disabled={!!loadingSeat}
+                className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmSeatSelection}
+                disabled={!!loadingSeat}
+                className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 font-semibold"
+              >
+                {loadingSeat ? '選位中...' : '確認座位'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">🪑 上課座位表 (上課模式)</h2>
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <button onClick={toggleFlip} className="px-3 py-1 bg-gray-100 rounded">{flipped ? '鏡像: 開 (前後+左右翻轉)' : '鏡像: 關'}</button>
-          <button onClick={() => refresh && refresh()} className="px-3 py-1 bg-gray-100 rounded">重新整理座位</button>
-          {tentativeSeat && (
-            <div className="flex items-center gap-2 ml-3">
-              <div className="text-sm">暫存選位: R{tentativeSeat.row+1} C{tentativeSeat.col+1}</div>
-              <button onClick={confirmTentativeSeat} disabled={!!loadingSeat} className="px-3 py-1 bg-green-600 text-white rounded">確認座位</button>
-              <button onClick={cancelTentativeSeat} disabled={!!loadingSeat} className="px-3 py-1 bg-gray-200 rounded">取消</button>
-            </div>
-          )}
+          <button
+            onClick={async () => {
+              if (refresh) {
+                setRefreshing(true);
+                await refresh();
+                setTimeout(() => setRefreshing(false), 800);
+              }
+            }}
+            className={`px-3 py-1 rounded transition-colors ${refreshing ? 'bg-green-100 text-green-700' : 'bg-gray-100'}`}
+          >
+            {refreshing ? '✓ 已更新' : '重新整理座位'}
+          </button>
         </div>
       </div>
 
       <div className="text-sm text-gray-500">黑板在前面 — 使用「鏡像」切換可把視角旋轉 180°。</div>
 
-          {/* Blackboard position: top when not flipped, bottom when flipped */}
-          {!flipped && (
-            <div className="w-full bg-[#0B5394] text-white rounded-t p-2 text-center font-bold mt-2">黑板 (Blackboard)</div>
-          )}
+      {!flipped && (
+        <div className="w-full bg-[#0B5394] text-white rounded-t p-2 text-center font-bold mt-2">黑板 (Blackboard)</div>
+      )}
 
-          <div className="grid grid-cols-3 gap-4 border-t pt-3">
-            {/* confirmation controls above seat table */}
-            <div className="col-span-3 mb-2">
-              {tentativeSeat && !selectionDisabled && (
-                <div className="flex items-center gap-3">
-                  <div className="text-sm">暫存選位: R{tentativeSeat.row+1} C{tentativeSeat.col+1}</div>
-                  <button onClick={confirmTentativeSeat} disabled={!!loadingSeat} className="px-3 py-1 bg-green-600 text-white rounded">確認座位</button>
-                  <button onClick={cancelTentativeSeat} disabled={!!loadingSeat} className="px-3 py-1 bg-gray-200 rounded">取消暫存</button>
-                </div>
-              )}
-              {selectionDisabled && (
-                <div className="text-sm text-gray-600">已確認座位 — 目前為唯讀檢視，無法再選位。</div>
-              )}
-            </div>
+      <div className="grid grid-cols-3 gap-4 border-t pt-3">
+        <div className="col-span-3 mb-2">
+          {selectionDisabled && (
+            <div className="text-sm text-gray-600">已確認座位 — 目前為唯讀檢視，無法再選位。</div>
+          )}
+        </div>
         {(() => {
           const groupDefs = ((): { key: string; label: string; cols: number[]; width: string }[] => {
             const normal = [
@@ -208,17 +226,22 @@ export default function ClassModeOverview({ members, sessionId, currentUserAccou
                       const c = mirroredLR ? (totalCols - 1 - colIdx) : colIdx;
                       const key = `${r}:${c}`;
                       const occupant = overrides[key] || seatMap[key];
-                      const isTentative = tentativeSeat && tentativeSeat.row === r && tentativeSeat.col === c;
 
                       return (
                         <div key={`${g.key}-${rIdx}-${colIdx}`} className="p-2 flex items-center justify-center">
-                          {occupant || isTentative ? (
+                          {occupant ? (
                             <div className="relative w-full h-full border rounded p-3 bg-white text-center shadow-sm">
                               <div className="absolute top-2 right-2 w-3 h-3 rounded-full bg-green-400 ring-1 ring-white" />
-                              <div className="text-sm font-medium text-gray-800">{(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.name || '我') : occupant.name}</div>
-                              <div className="text-xs text-gray-500">({(isTentative && !occupant) ? (members.find(m=>String(m.id)===String(currentUserAccountId))?.student_no || '') : occupant.student_no})</div>
-                              { (isTentative && !occupant) && <div className="absolute bottom-2 right-2 text-xs text-green-700 font-semibold">暫存</div> }
-                              {(occupant && occupant.hand_raised) && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
+                              <div className="text-sm font-medium text-gray-800">
+                                {occupant.name || (String(occupant.id) === String(currentUserAccountId) ? (currentUserName || '我') : '?')}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {(() => {
+                                  const sno = occupant.student_no || (String(occupant.id) === String(currentUserAccountId) ? currentUserStudentNo : '');
+                                  return sno ? `(${sno})` : null;
+                                })()}
+                              </div>
+                              {occupant.hand_raised && <div className="absolute bottom-2 right-2 text-sm" title="已舉手">🙋‍♂️</div>}
                             </div>
                           ) : (
                             <button

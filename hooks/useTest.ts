@@ -3,23 +3,25 @@ import { useEffect, useState } from "react";
 import { testQuery } from "../lib/supabase/test";
 
 export function useTest() {
-  const [data, setData] = useState<any[] | null>(null);
+  const [data, setData] = useState<unknown[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<any>(null);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    setIsLoading(true);
+
     testQuery()
       .then((d) => {
-        if (mounted) setData(d ?? []);
+        if (!mounted) return;
+        setData(Array.isArray(d) ? d : []);
       })
-      .catch((e) => {
-        if (mounted) setError(e);
+      .catch((e: unknown) => {
+        if (mounted) setError(e instanceof Error ? e : new Error(String(e)));
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
       });
+
     return () => {
       mounted = false;
     };

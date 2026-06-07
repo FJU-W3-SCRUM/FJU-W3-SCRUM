@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/client';
 
 // GET /api/class-mode/sessions
 // Fetches all active "class mode" sessions for students to join.
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const { data: sessions, error } = await supabaseAdmin
       .from('sessions')
@@ -20,7 +20,15 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    const formatted = (sessions || []).map((s: any) => ({
+    type SessionRecord = {
+      id: number;
+      title: string;
+      starts_at: string | null;
+      classes?: { class_name?: string } | null;
+    };
+
+    const sessionRows = (sessions || []) as SessionRecord[];
+    const formatted = sessionRows.map((s) => ({
       id: s.id,
       title: s.title,
       class_name: s.classes?.class_name || '未知班級',
@@ -29,9 +37,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ sessions: formatted });
 
-  } catch (error: any) {
-    console.error('Error fetching class mode sessions:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('Error fetching class mode sessions:', errorMessage);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -40,7 +49,7 @@ export async function GET(request: Request) {
 // Creates a new "class mode" session for a given class. (Teacher only)
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const { class_id, title } = body;
 
     if (!class_id || !title) {
@@ -75,8 +84,9 @@ export async function POST(request: Request) {
     if (sessionError) throw sessionError;
 
     return NextResponse.json(session);
-  } catch (e: any) {
-    console.error('Unexpected error in POST /api/class-mode/sessions:', e);
-    return NextResponse.json({ error: e?.message || 'Failed to create session' }, { status: 500 });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('Unexpected error in POST /api/class-mode/sessions:', errorMessage);
+    return NextResponse.json({ error: errorMessage || 'Failed to create session' }, { status: 500 });
   }
 }

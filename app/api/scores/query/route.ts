@@ -65,11 +65,12 @@ export async function GET(request: Request) {
       { ok: true, data: results, count: results.length },
       { status: 200 }
     );
-  } catch (error: any) {
-    console.error('GET /api/scores/query error:', error);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('GET /api/scores/query error:', err);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Internal server error' },
-      { status: error.message?.includes('Access denied') ? 403 : 500 }
+      { ok: false, error: err.message || 'Internal server error' },
+      { status: err.message.includes('Access denied') ? 403 : 500 }
     );
   }
 }
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     const pathname = new URL(request.url).pathname;
 
     if (pathname.includes('/teacher-classes')) {
-      const body = await request.json();
+      const body = (await request.json()) as Record<string, unknown>;
       const { teacherId } = body;
 
       if (!teacherId) {
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
         { status: 200 }
       );
     } else if (pathname.includes('/student-classes')) {
-      const body = await request.json();
+      const body = (await request.json()) as Record<string, unknown>;
       const { studentId } = body;
 
       if (!studentId) {
@@ -125,10 +126,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-  } catch (error: any) {
-    console.error('POST /api/scores/query error:', error);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    console.error('POST /api/scores/query error:', err);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Internal server error' },
+      { ok: false, error: err.message || 'Internal server error' },
       { status: 500 }
     );
   }

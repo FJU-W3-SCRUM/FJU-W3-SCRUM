@@ -27,22 +27,32 @@ export async function GET(request: Request) {
 
     if (error) throw error;
 
-    const seatMap = (data || []).map((seat: any) => {
-      const account = Array.isArray(seat.accounts) ? seat.accounts[0] : seat.accounts;
+    type SeatRow = {
+      seat_row: number;
+      seat_col: number;
+      account_id: number | null;
+      accounts: Array<{ student_no?: string; name?: string }> | { student_no?: string; name?: string } | null;
+    };
+
+    const seatRows = (data || []) as SeatRow[];
+    const seatMap = seatRows.map((seat) => {
+      const accountInfo = Array.isArray(seat.accounts) ? seat.accounts[0] : seat.accounts;
+      const account = accountInfo ?? { student_no: undefined, name: undefined };
       return {
         seat_x: seat.seat_col,
         seat_y: seat.seat_row,
-        student_id: account?.student_no || null,
-        student_name: account?.name || '未知',
+        student_id: account.student_no || null,
+        student_name: account.name || '未知',
         user_id: seat.account_id,
       };
     });
 
     return NextResponse.json({ seatMap });
 
-  } catch (error: any) {
-    console.error('Error fetching seat map:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error('Error fetching seat map:', errorMessage);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -52,7 +62,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     // 1. Get request body
-    const { session_id, seat_x, seat_y, seat_row, seat_col, account_id, student_id } = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
+  const { session_id, seat_x, seat_y, seat_row, seat_col, account_id, student_id } = body;
     const row = seat_row ?? seat_x;
     const col = seat_col ?? seat_y;
     const actorAccountId = account_id ?? student_id;
@@ -92,11 +103,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, message: '座位選擇成功！' });
 
-  } catch (error: any) {
-    if (error?.status === 409) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    const status = typeof error === 'object' && error !== null && 'status' in error ? (error as { status?: number }).status : undefined;
+    if (status === 409) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
     }
-    console.error('Error upserting seat:', error);
-    return NextResponse.json({ error: `伺服器錯誤: ${error.message}` }, { status: 500 });
+    console.error('Error upserting seat:', err);
+    return NextResponse.json({ error: `伺服器錯誤: ${err.message}` }, { status: 500 });
   }
 }

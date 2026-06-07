@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import AuthLayout from '@/components/AuthLayout';
 import HandsUpInteractiveLayout from '@/components/hands-up/HandsUpInteractiveLayout';
@@ -8,7 +8,20 @@ import ReportOverview from '@/components/hands-up/ReportOverview';
 import ClassModeOverview from '@/components/hands-up/ClassModeOverview';
 import HandsUpQueue from '@/components/hands-up/HandsUpQueue';
 import RatingModal from '@/components/hands-up/RatingModal';
-import { useHandsUpSync } from '@/hooks/useHandsUpSync';
+import { useHandsUpSync, type HandsUpQueueItem, type HandsUpMemberItem, type HandsUpOverviewResponse } from '@/hooks/useHandsUpSync';
+
+interface SessionUser {
+  id: string;
+  student_no: string;
+  role?: string;
+  name?: string;
+}
+
+interface AvailableGroup {
+  id: string;
+  group_name: string;
+}
+
 
 export default function SessionPage() {
   const params = useParams();
@@ -16,7 +29,7 @@ export default function SessionPage() {
   const searchParams = useSearchParams();
   const session_id = params.session_id as string;
   
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [canManage, setCanManage] = useState(false);
   const [isReportingLeader, setIsReportingLeader] = useState(false);
   const [currentUserAccountId, setCurrentUserAccountId] = useState('');
@@ -25,42 +38,47 @@ export default function SessionPage() {
   const [mode, setMode] = useState<'report'|'class'>('report');
   const [qnaOpen, setQnaOpen] = useState(false);
   const [presentingGroupId, setPresentingGroupId] = useState<string | null>(null);
-  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<AvailableGroup[]>([]);
   const [presentingStatus, setPresentingStatus] = useState<'N'|'P'|'Y'>('N');
   const [sessionStatus, setSessionStatus] = useState<string>('');
 
   useEffect(() => {
-    // 如果 URL 有 ?mode=class，預設切換到上課模式
-    try {
-      const qMode = searchParams?.get('mode');
-      if (qMode === 'class') setMode('class');
-    } catch (e) {}
+    const initUserFromCookie = async () => {
+      // 如果 URL 有 ?mode=class，預設切換到上課模式
+      try {
+        const qMode = searchParams?.get('mode');
+        if (qMode === 'class') setMode('class');
+      } catch {
+        // ignore invalid URL state
+      }
 
-     try {
-      const m = document.cookie.match(new RegExp('(?:^|; )' + 'ch_user' + '=([^;]*)'));
-      const userStr = m ? decodeURIComponent(m[1]) : null;
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setCurrentUser(user);
-        setCurrentUserAccountId(user.id);
-        const isTeacher = user.role === 'admin' || user.role === 'teacher';
-        setCanManage(isTeacher);
-         
-        // Record session start time if teacher enters and session hasn't started
-        if (isTeacher && session_id) {
-          fetch('/api/hands-up/update-session', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ session_id, session_action: 'start_session' })
-          }).catch(err => console.error("Auto-start session failed", err));
+      try {
+        const m = document.cookie.match(new RegExp('(?:^|; )' + 'ch_user' + '=([^;]*)'));
+        const userStr = m ? decodeURIComponent(m[1]) : null;
+        if (userStr) {
+          const user = JSON.parse(userStr) as SessionUser;
+          setCurrentUser(user);
+          setCurrentUserAccountId(user.id);
+          const isTeacher = user.role === 'admin' || user.role === 'teacher';
+          setCanManage(isTeacher);
+
+          if (isTeacher && session_id) {
+            await fetch('/api/hands-up/update-session', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id, session_action: 'start_session' }),
+            }).catch((err) => console.error('Auto-start session failed', err));
+          }
+        } else {
+          router.push('/');
         }
-      } else {
+      } catch {
         router.push('/');
       }
-     } catch(e) {
-      router.push('/');
-     }
-  }, [router, session_id]);
+    };
+
+    void initUserFromCookie();
+  }, [router, searchParams, session_id]);
 
   // Warn and optionally end session when a managing user (teacher) closes the tab/window
   useEffect(() => {
@@ -75,14 +93,17 @@ export default function SessionPage() {
         try {
           const payload = JSON.stringify({ session_id, session_action: 'end_session' });
           const url = '/api/hands-up/update-session';
-          if (navigator && (navigator as any).sendBeacon) {
+          const nav = navigator as unknown as { sendBeacon?: (url: string, data: Blob) => boolean };
+          if (navigator && nav.sendBeacon) {
             const blob = new Blob([payload], { type: 'application/json' });
-            (navigator as any).sendBeacon(url, blob);
+            nav.sendBeacon(url, blob);
           } else {
             // Fallback: use fetch with keepalive (may not be supported in all browsers)
             fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
           }
-        } catch (_) {}
+        } catch {
+          // Ignore beacon errors
+        }
       }
     };
 
@@ -90,12 +111,12 @@ export default function SessionPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [canManage, sessionStatus, session_id]);
 
-  const [initialQueue, setInitialQueue] = useState<any[]>([]);
-  const [initialMembers, setInitialMembers] = useState<any[]>([]);
-  
+  const [initialQueue, setInitialQueue] = useState<HandsUpQueueItem[]>([]);
+  const [initialMembers, setInitialMembers] = useState<HandsUpMemberItem[]>([]);
+
   // Define update logic in a shared function
-  const updateUIFromData = (data: any) => {
-    if(!data || data.error) return;
+  const updateUIFromData = useCallback((data: HandsUpOverviewResponse) => {
+    if(data.error) return;
     
     const sessionStatus = data.session_status || '';
     
@@ -122,7 +143,7 @@ export default function SessionPage() {
     } else {
        setPresentingGroupId(dbGroupId);
     }
-  };
+  }, [router]);
 
   // Custom hook for < 1sec sync (Supabase WebSocket + polling fallback)
   const { queue, members, refresh, startPolling } = useHandsUpSync({ 
@@ -136,12 +157,15 @@ export default function SessionPage() {
   // a Supabase Realtime channel and calls `refresh()` on relevant DB changes.
 
   useEffect(() => {
-     // Check if current student is the leader of the reporting group
-     if (currentUser && presentingGroupId && members.length > 0) {
-        const myInfo = members.find(m => m.student_no === currentUser.student_no);
+    const updateLeaderFlag = () => {
+      if (currentUser && presentingGroupId && members.length > 0) {
+        const myInfo = members.find((m) => m.student_no === currentUser.student_no);
         const isLeader = myInfo?.is_leader && myInfo?.group?.id?.toString() === presentingGroupId.toString();
         setIsReportingLeader(!!isLeader);
-     }
+      }
+    };
+
+    updateLeaderFlag();
   }, [currentUser, presentingGroupId, members]);
 
   // Unified permission to control report/Q&A/Clear
@@ -151,48 +175,56 @@ export default function SessionPage() {
   const [ratingTarget, setRatingTarget] = useState<{accountId: string, handRaiseId: string} | null>(null);
 
   useEffect(() => {
-    // Initial Fetch
-    fetch(`/api/hands-up/overview?session_id=${session_id}`)
-      .then(res => res.json())
-      .then(async (data) => {
-          if(data && !data.error) {
-           setInitialQueue(data.hands_up_queue || []);
-           setInitialMembers(data.members || []);
-           updateUIFromData(data);
-           
-           // 修復：根據課堂所屬的班級和用戶身份，查詢正確的 account_id
-           if (currentUser && data.class_id) {
-             try {
-               if (!canManage) {
-                 // 學生：根據 student_no + class_id 查詢正確的 account_id
-                 const res = await fetch(`/api/auth/get-account-id-by-class?student_no=${currentUser.student_no}&class_id=${data.class_id}`);
-                 const result = await res.json();
-                 
-                 if (result.account_id) {
-                   console.log(`[SessionPage] 更正學生 account_id: ${currentUserAccountId} → ${result.account_id} (for class_id: ${data.class_id})`);
-                   setCurrentUserAccountId(result.account_id);
-                 }
-               } else {
-                 // 老師：嘗試從該班級查詢對應的 teacher_id
-                 const res = await fetch(`/api/auth/get-teacher-account-id?class_id=${data.class_id}`);
-                 const result = await res.json();
-                 
-                 if (result.teacher_account_id) {
-                   console.log(`[SessionPage] 更正老師 account_id: ${currentUserAccountId} → ${result.teacher_account_id} (for class_id: ${data.class_id})`);
-                   setCurrentUserAccountId(result.teacher_account_id);
-                 } else {
-                   console.warn(`[SessionPage] 未找到班級 ${data.class_id} 的老師 account_id，將使用 NULL 進行評分`);
-                 }
-               }
-             } catch (e) {
-               console.error('[SessionPage] Failed to get correct account_id:', e);
-               // 繼續使用原有的 account_id
-             }
-           }
-         }
-      })
-      .catch(err => console.error("Initial load failed", err));
-  }, [session_id, currentUser, canManage, currentUserAccountId]);
+    const loadOverviewData = async () => {
+      try {
+        const res = await fetch(`/api/hands-up/overview?session_id=${session_id}`);
+        const data = await res.json();
+        if (data && !data.error) {
+          setInitialQueue(data.hands_up_queue || []);
+          setInitialMembers(data.members || []);
+          updateUIFromData(data);
+
+          if (currentUser && data.class_id) {
+            try {
+              if (!canManage) {
+                const res2 = await fetch(
+                  `/api/auth/get-account-id-by-class?student_no=${currentUser.student_no}&class_id=${data.class_id}`
+                );
+                const result = await res2.json();
+
+                if (result.account_id) {
+                  console.log(
+                    `[SessionPage] 更正學生 account_id: ${currentUserAccountId} → ${result.account_id} (for class_id: ${data.class_id})`
+                  );
+                  setCurrentUserAccountId(result.account_id);
+                }
+              } else {
+                const res2 = await fetch(`/api/auth/get-teacher-account-id?class_id=${data.class_id}`);
+                const result = await res2.json();
+
+                if (result.teacher_account_id) {
+                  console.log(
+                    `[SessionPage] 更正老師 account_id: ${currentUserAccountId} → ${result.teacher_account_id} (for class_id: ${data.class_id})`
+                  );
+                  setCurrentUserAccountId(result.teacher_account_id);
+                } else {
+                  console.warn(
+                    `[SessionPage] 未找到班級 ${data.class_id} 的老師 account_id，將使用 NULL 進行評分`
+                  );
+                }
+              }
+            } catch (error) {
+              console.error('[SessionPage] Failed to get correct account_id:', error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Initial load failed', error);
+      }
+    };
+
+    void loadOverviewData();
+  }, [session_id, currentUser, canManage, currentUserAccountId, updateUIFromData]);
 
   const handleToggleQna = async () => {
     const newState = !qnaOpen;
@@ -205,10 +237,12 @@ export default function SessionPage() {
       });
       refresh();
       startPolling(); // Enable aggressive polling for 3 seconds
-    } catch(e) { }
+    } catch {
+      // ignore network failures when toggling Q&A
+    }
   };
 
-  const handleChangePresentingGroup = async (e: any) => {
+  const handleChangePresentingGroup = async (e: ChangeEvent<HTMLSelectElement>) => {
     const newVal = e.target.value;
     setPresentingGroupId(newVal);
     setPresentingStatus('N'); // Reset status for the new group
@@ -238,7 +272,9 @@ export default function SessionPage() {
       });
       refresh();
       startPolling(); // Enable aggressive polling for 3 seconds
-    } catch(e) { }
+    } catch {
+      // ignore update failures when changing group
+    }
   };
 
   const handleReportToggle = async () => {
@@ -300,8 +336,8 @@ export default function SessionPage() {
       });
       refresh();
       startPolling(); // Enable aggressive polling for 3 seconds
-    } catch(e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -366,12 +402,14 @@ export default function SessionPage() {
   };
 
   // Convert array members to a fast map for the HandsUpQueue
-  const membersMap: Record<string, any> = {};
-  members.forEach(m => membersMap[m.id] = m);
+  const membersMap: Record<string, HandsUpMemberItem> = {};
+  members.forEach((m) => {
+    if (m.id) membersMap[m.id] = m;
+  });
 
   // Derive target modal UI attributes safely
-  const targetName = ratingTarget ? membersMap[ratingTarget.accountId]?.name : "";
-  const targetNo = ratingTarget ? membersMap[ratingTarget.accountId]?.student_no : "";
+  const targetName = ratingTarget ? (membersMap[ratingTarget.accountId]?.name ?? "") : "";
+  const targetNo = ratingTarget ? (membersMap[ratingTarget.accountId]?.student_no ?? "") : "";
 
   if (!currentUser) return null;
 
@@ -402,11 +440,13 @@ export default function SessionPage() {
           mode === 'report' ? (
             <ReportOverview members={members} presentingGroupId={presentingGroupId} onRate={canControlReport ? handleSelectStudentForRating : undefined} sessionId={session_id} />
           ) : (
-            <ClassModeOverview 
-              members={members} 
-              sessionId={session_id} 
-              currentUserAccountId={currentUserAccountId} 
-              canManage={canManage} 
+            <ClassModeOverview
+              members={members}
+              sessionId={session_id}
+              currentUserAccountId={currentUserAccountId}
+              currentUserName={currentUser?.name}
+              currentUserStudentNo={currentUser?.student_no}
+              canManage={canManage}
               refresh={refresh}
               startPolling={startPolling}
               selectionDisabled={(searchParams?.get('page') === '3') || (searchParams?.get('confirmed') === '1')}
@@ -435,7 +475,7 @@ export default function SessionPage() {
              <span className={`font-bold px-3 py-1 rounded-full text-sm ${qnaOpen ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'}`}>
                 {qnaOpen ? '🟢 Q&A 開放中' : '⚪ Q&A 已關閉'}
              </span>
-             <h1 className="font-bold text-xl text-gray-700">{className} - 課堂即時互動 (Session {session_id})</h1>
+             <h1 className="font-bold text-xl text-gray-700">{className} - 課堂即時互動</h1>
              
              <div className="flex flex-col gap-1 ml-4 border-l pl-4">
                  <div className="flex items-center gap-2">
@@ -447,7 +487,7 @@ export default function SessionPage() {
                         disabled={!canManage || presentingStatus === 'P'}
                     >
                         <option value="">-- 無 --</option>
-                        {availableGroups.map((g: any) => (
+                        {availableGroups.map((g) => (
                           <option key={g.id} value={g.id}>{g.group_name}</option>
                         ))}
                     </select>

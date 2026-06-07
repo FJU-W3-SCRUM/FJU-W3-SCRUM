@@ -41,12 +41,13 @@ vi.mock("@/lib/supabase/client", () => ({
 describe("ungrouped-students API", () => {
   it("excludes students already assigned to any group in the class", async () => {
     const req = new Request("http://localhost/api/ungrouped-students?class_id=100&group_id=3");
-    const res = await getUngrouped(req as any);
-    const j = await res.json();
+    const res = await getUngrouped(req);
+    const j = await res.json() as Record<string, unknown>;
     expect(j).toBeDefined();
     expect(j.ok).toBeTruthy();
     // Only S003 should remain ungrouped
-    const nos = (j.students || []).map((s: any) => s.student_no);
+    const students = (j.students || []) as Array<{ student_no: string }>;
+    const nos = students.map(s => s.student_no);
     expect(nos).toContain("S003");
     expect(nos).not.toContain("S001");
     expect(nos).not.toContain("S002");
