@@ -1,4 +1,37 @@
 import { NextResponse } from 'next/server';
+
+export async function DELETE(request: Request) {
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const { session_id, account_id, actorAccountId, isAdmin } = body;
+
+    if (!session_id || !account_id) {
+      return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    }
+
+    const isSelf = String(actorAccountId) === String(account_id);
+    if (!isAdmin && !isSelf) {
+      return NextResponse.json({ error: '權限不足' }, { status: 403 });
+    }
+
+    const { supabaseAdmin } = await import('../../../../lib/supabase/client');
+
+    const { error } = await supabaseAdmin
+      .from('session_seats')
+      .delete()
+      .eq('session_id', session_id)
+      .eq('account_id', account_id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error('cancel-seat error', err);
+    const e = err as { message?: string; status?: number };
+    return NextResponse.json({ error: e.message || 'Server error' }, { status: e.status || 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;

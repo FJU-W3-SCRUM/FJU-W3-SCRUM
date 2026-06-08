@@ -12,6 +12,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import type { StudentScoreQueryResult } from "@/lib/services/score-query-service";
 
+type ExportFormat = "csv" | "xlsx" | "xlsx-sheets";
+
 interface ScoreQueryPanelProps {
   user: {
     id: string;
@@ -37,6 +39,9 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
   const [results, setResults] = useState<StudentScoreQueryResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string>("");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
+  const [includeDetails, setIncludeDetails] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const loadClasses = useCallback(async () => {
     try {
@@ -85,7 +90,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
     void init();
   }, [loadClasses]);
 
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     try {
@@ -128,6 +133,114 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
     setKeyword("");
     setResults([]);
     setError("");
+  };
+
+  // Build flat rows for export
+  const buildRows = (students: StudentScoreQueryResult[], sessionLabel: string) => {
+    const maxDetails = includeDetails
+      ? Math.max(0, ...students.map(s => s.ratingDetails?.length ?? 0))
+      : 0;
+    return students.map(s => {
+      const base: Record<string, string | number> = {
+        班別: s.class_name,
+        課堂: sessionLabel,
+        日期: s.session_starts_at ? new Date(s.session_starts_at).toLocaleDateString("zh-TW") : "",
+        學號: s.student_no,
+        姓名: s.name,
+        舉手次數: s.raiseCount,
+        被點次數: s.answerCount,
+        評點分數: s.totalScore,
+      };
+      if (includeDetails) {
+        for (let i = 0; i < maxDetails; i++) {
+          base[`第${i + 1}次評分`] = s.ratingDetails?.[i] ?? "";
+        }
+      }
+      return base;
+    });
+  };
+
+  const handleExport = async () => {
+    if (results.length === 0) { alert("請先查詢再匯出"); return; }
+    setIsExporting(true);
+    try {
+      // Build grouped sessions (reuse same logic as display)
+      const grouped = results.reduce((acc, r) => {
+        if (!acc[r.session_id]) {
+          acc[r.session_id] = { session: { id: r.session_id, title: r.session_title, class_name: r.class_name, starts_at: r.session_starts_at }, students: [] };
+        }
+        acc[r.session_id].students.push(r);
+        return acc;
+      }, {} as Record<string, { session: { id: string; title: string; class_name: string; starts_at: string | null }; students: StudentScoreQueryResult[] }>);
+
+      const dcCount: Record<string, number> = {};
+      const sidIdx: Record<string, number> = {};
+      Object.entries(grouped).forEach(([sid, g]) => {
+        const d = g.session.starts_at ? new Date(g.session.starts_at).toLocaleDateString("zh-TW") : g.session.title;
+        const k = `${g.session.class_name}::${d}`;
+        dcCount[k] = (dcCount[k] ?? 0) + 1;
+        sidIdx[sid] = dcCount[k];
+      });
+      const dupKeys = new Set(Object.entries(dcCount).filter(([, c]) => c > 1).map(([k]) => k));
+
+      const getLabel = (sid: string) => {
+        const g = grouped[sid];
+        const d = g.session.starts_at ? new Date(g.session.starts_at).toLocaleDateString("zh-TW") : null;
+        const k = `${g.session.class_name}::${d ?? g.session.title}`;
+        const idx = String(sidIdx[sid]).padStart(2, "0");
+        return dupKeys.has(k) ? `${g.session.title}-${idx}` : g.session.title;
+      };
+
+      const filename = `分數查詢_${new Date().toLocaleDateString("zh-TW").replace(/\//g, "")}`;
+
+      if (exportFormat === "csv") {
+        // Build all rows with header
+        const allRows = Object.entries(grouped).flatMap(([sid, g]) => buildRows(g.students, getLabel(sid)));
+        if (allRows.length === 0) return;
+        const headers = Object.keys(allRows[0]);
+        const csvLines = [
+          headers.join(","),
+          ...allRows.map(row => headers.map(h => {
+            const v = String(row[h] ?? "");
+            return v.includes(",") || v.includes('"') || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v;
+          }).join(","))
+        ];
+        const bom = "﻿";
+        const blob = new Blob([bom + csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `${filename}.csv`; a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const XLSX = await import("xlsx");
+
+        if (exportFormat === "xlsx") {
+          const allRows = Object.entries(grouped).flatMap(([sid, g]) => buildRows(g.students, getLabel(sid)));
+          const ws = XLSX.utils.json_to_sheet(allRows);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "分數查詢");
+          XLSX.writeFile(wb, `${filename}.xlsx`);
+        } else {
+          // xlsx-sheets: one sheet per session
+          const wb = XLSX.utils.book_new();
+          const usedNames = new Set<string>();
+          Object.entries(grouped).forEach(([sid, g]) => {
+            const rows = buildRows(g.students, getLabel(sid));
+            const ws = XLSX.utils.json_to_sheet(rows);
+            // Sheet name max 31 chars, must be unique
+            let sheetName = `${g.session.class_name}_${getLabel(sid)}`
+              .replace(/[:\\/?*[\]]/g, "_")
+              .slice(0, 31);
+            let counter = 2;
+            while (usedNames.has(sheetName)) { sheetName = sheetName.slice(0, 28) + `_${counter++}`; }
+            usedNames.add(sheetName);
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+          });
+          XLSX.writeFile(wb, `${filename}.xlsx`);
+        }
+      }
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (loading) {
@@ -238,7 +351,7 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-wrap items-center gap-2 pt-2">
             <button
               type="submit"
               disabled={isSearching}
@@ -246,6 +359,39 @@ export default function ScoreQueryPanel({ user }: ScoreQueryPanelProps) {
             >
               {isSearching ? "查詢中..." : "查詢"}
             </button>
+
+            {/* Export format dropdown */}
+            <select
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+              className="px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+            >
+              <option value="csv">CSV</option>
+              <option value="xlsx">XLSX</option>
+              <option value="xlsx-sheets">XLSX 分頁</option>
+            </select>
+
+            {/* Include detail checkbox */}
+            <label className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={includeDetails}
+                onChange={(e) => setIncludeDetails(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300"
+              />
+              包含評分逐筆明細
+            </label>
+
+            {/* Export button */}
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={isExporting || results.length === 0}
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold disabled:opacity-50"
+            >
+              {isExporting ? "匯出中..." : "匯出"}
+            </button>
+
             <button
               type="button"
               onClick={handleReset}
