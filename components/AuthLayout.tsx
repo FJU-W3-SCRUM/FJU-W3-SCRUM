@@ -11,6 +11,7 @@ const ClassesPanel = dynamic(() => import("./ClassesPanel"), { ssr: false });
 const ReportModePanel = dynamic(() => import("./ReportModePanel"), { ssr: false });
 const ClassModePanel = dynamic(() => import("./ClassModePanel"), { ssr: false });
 const ScoreQueryPanel = dynamic(() => import("./ScoreQueryPanel"), { ssr: false });
+const GratitudeWall = dynamic(() => import("./GratitudeWall"), { ssr: false });
 
 export default function AuthLayout({
   user,
@@ -30,12 +31,14 @@ export default function AuthLayout({
       { key: "class_mode", label: "上課模式" },
       { key: "report_mode", label: "報告模式" },
       { key: "score_query", label: "分數查詢" },
+      { key: "gratitude_wall", label: "感謝牆" },
     ];
 
     const studentMenu = [
       { key: "class_mode", label: "上課模式" },
       { key: "report_mode", label: "報告模式" },
       { key: "score_query", label: "分數查詢" },
+      { key: "gratitude_wall", label: "感謝牆" },
     ];
 
     // admin 和 teacher 顯示完整菜單，其他角色（包括 student）顯示學生菜單
@@ -126,6 +129,9 @@ export default function AuthLayout({
           <div className="bg-white dark:bg-gray-800 rounded shadow-md border border-gray-200 dark:border-gray-700">
             <ScoreQueryPanel user={user as any} />
           </div>
+        )}
+        {active === "gratitude_wall" && (
+          <GratitudeWall user={user} />
         )}
       </main>
     </div>
