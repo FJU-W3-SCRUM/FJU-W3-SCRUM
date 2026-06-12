@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase/client';
 import { updateGratitudePost, deleteGratitudePost } from '@/lib/services/gratitude.service';
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const id = Number(params.id);
+    const { id: idStr } = await context.params;
+    const id = Number(idStr);
     if (!id) return NextResponse.json({ ok: false, error: 'Invalid id' }, { status: 400 });
 
     const body = await request.json();
@@ -26,9 +27,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    const id = Number(params.id);
+    const { id: idStr } = await context.params;
+    const id = Number(idStr);
     if (!id) return NextResponse.json({ ok: false, error: 'Invalid id' }, { status: 400 });
 
     const url = new URL(request.url);
